@@ -1,37 +1,53 @@
-# Momentus (12SE Major Project)
+# Momentus PWA (MVP)
 
-Desktop training, nutrition, and recovery tracker built with Python, CustomTkinter, SQLite, and Matplotlib.
+A desktop-first Progressive Web App for strength-training athletes. This MVP focuses on a training log, progress charts, lightweight habits, and local-first storage backed by a Python API.
 
-## Requirements
+## Features
 
-- Python 3.10+ (recommended)
-- `pip`
+- Training log with sessions, exercises, sets, and notes
+- Progress charts (weight/reps trend + weekly volume split)
+- Calendar views (day/week/month) with goal status colors
+- Daily habits (creatine + electrolytes checkboxes with streaks)
+- Macro + sleep MVP forms
+- SQLite storage via Python API
+- Installable PWA (manifest + service worker)
 
-Project dependencies are listed in [`requirements.txt`](/c:/Users/suche/OneDrive/Documents/School/Software%20Engineering/Major%20Project/12SE_Suchet_MajorProject_Momentus/requirements.txt):
+## Project structure
 
-- `customtkinter>=5.2.2`
-- `matplotlib>=3.8.0`
+- `web/` - PWA source (HTML/CSS/JS)
+- `web/assets/` - icons and textures
+- `backend/` - FastAPI server + SQLite
 
 ## Setup
 
-1. Open a terminal in the project folder.
-2. Install dependencies:
+You need a local web server (service workers require HTTP/S). The Python backend serves both the API and the PWA.
+
+### Python (recommended)
+
+1. Create and activate a virtual environment (optional but recommended).
+2. Install backend dependencies:
 
 ```bash
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
-## Run the app
+3. Start the server:
 
 ```bash
-python App.py
+python -m uvicorn backend.main:app --reload
 ```
+
+Open `http://localhost:8000/` in your browser.
 
 ## Notes
 
-- The app creates `momentus.db` automatically in the project folder.
-- If `customtkinter` import fails, reinstall dependencies with:
+- Opening `web/index.html` directly will not register the service worker.
+- All data is stored locally in SQLite; delete `backend/momentus.db` to reset.
 
-```bash
-pip install --upgrade -r requirements.txt
-```
+## Manual test checklist
+
+1. Create/edit/delete a training session; charts update.
+2. Toggle creatine/electrolytes checkboxes; streak updates.
+3. Switch calendar views; colors update.
+4. Refresh page; data persists.
+5. Install PWA; cached screens load offline.
