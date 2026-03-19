@@ -1,0 +1,10 @@
+﻿# PWA build
+node_modules/
+# Python leftovers
+__pycache__/
+.venv/
+*.pyc
+# Local data
+*.db
+# OS
+.DS_Store
