@@ -32,10 +32,31 @@ const requestJson = async (path, options = {}) => {
 const getAll = async (storeName) =>
   requestJson(`${API_BASE}/${storeName}`);
 
-const getByIndex = async (storeName, indexName, value) => {
-  const items = await getAll(storeName);
-  return items.filter((item) => item?.[indexName] === value);
+const getSessionMetrics = async (days = 7) =>
+  requestJson(`${API_BASE}/analytics/session-metrics?days=${encodeURIComponent(days)}`);
+
+const getVolumeByMuscle = async ({ days, range, date } = {}) => {
+  const params = new URLSearchParams();
+  if (days !== undefined && days !== null) params.set("days", String(days));
+  if (range) params.set("range", String(range));
+  if (date) params.set("date", String(date));
+  return requestJson(`${API_BASE}/analytics/volume-by-muscle?${params.toString()}`);
 };
+
+const getWeekSummary = async (weekDates) =>
+  requestJson(`${API_BASE}/analytics/week-summary`, {
+    method: "POST",
+    body: JSON.stringify({ weekDates }),
+  });
+
+const getMacroProgress = async (date) =>
+  requestJson(`${API_BASE}/analytics/macro-progress?date=${encodeURIComponent(date)}`);
+
+const getHydrationTotal = async (date) =>
+  requestJson(`${API_BASE}/analytics/hydration-total?date=${encodeURIComponent(date)}`);
+
+const getRecoveryTimeline = async (limit = 30) =>
+  requestJson(`${API_BASE}/analytics/recovery-timeline?limit=${encodeURIComponent(limit)}`);
 
 const put = async (storeName, item) => {
   const payload = { ...(item || {}) };
@@ -47,17 +68,10 @@ const put = async (storeName, item) => {
   });
 };
 
-const add = async (storeName, item) => put(storeName, item);
-
 const remove = async (storeName, id) =>
   requestJson(`${API_BASE}/${storeName}/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
-
-const clear = async (storeName) => {
-  const items = await getAll(storeName);
-  await Promise.all(items.map((item) => remove(storeName, item.id)));
-};
 
 const bulkPut = async (storeName, items) => {
   const payload = (items || []).map((item) => ({
@@ -85,11 +99,14 @@ const seedIfNeeded = async () => {
 export {
   STORES,
   getAll,
-  getByIndex,
+  getSessionMetrics,
+  getVolumeByMuscle,
+  getWeekSummary,
+  getMacroProgress,
+  getHydrationTotal,
+  getRecoveryTimeline,
   put,
-  add,
   remove,
-  clear,
   bulkPut,
   makeId,
   seedIfNeeded,

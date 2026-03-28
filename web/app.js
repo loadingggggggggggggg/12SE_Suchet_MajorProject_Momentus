@@ -24,6 +24,7 @@ import {
   computeWeekSummary,
   computeMacroProgress,
   computeHydrationTotal,
+  computeRecoveryTimeline,
   saveRecoveryNote,
   getRecoveryNoteForDate,
 } from "./state.js";
@@ -330,8 +331,8 @@ const updateHabitsUI = (date = selectedHabitDate) => {
   }
 };
 
-const renderWeekSummary = (weekDates) => {
-  const summary = computeWeekSummary(weekDates);
+const renderWeekSummary = async (weekDates) => {
+  const summary = await computeWeekSummary(weekDates);
   ui.weekSummary.innerHTML = `
     <div>Total sets: <strong>${summary.totalSets}</strong></div>
     <div>Avg calories: <strong>${summary.avgCalories}</strong></div>
@@ -475,7 +476,7 @@ const updateCalendarMonth = (stateObj, monthValue) => {
   stateObj.anchorDate = new Date(year, month, 1);
 };
 
-const renderDashboardCalendar = () => {
+const renderDashboardCalendar = async () => {
   const { weekDates } = renderCalendar(ui.calendarView, {
     view: calendarState.view,
     anchorDate: calendarState.anchorDate,
@@ -484,7 +485,7 @@ const renderDashboardCalendar = () => {
     dayFilter: buildCalendarFilter(calendarState.month),
     onSelectDate: (iso) => updateHabitsUI(iso),
   }) || { weekDates: [] };
-  if (weekDates.length) renderWeekSummary(weekDates);
+  if (weekDates.length) await renderWeekSummary(weekDates);
 };
 
 const renderTrainingCalendar = () => {
@@ -497,8 +498,8 @@ const renderTrainingCalendar = () => {
   });
 };
 
-const updateDashboard = () => {
-  const metrics = computeSessionMetrics(7);
+const updateDashboard = async () => {
+  const metrics = await computeSessionMetrics(7);
   ui.metricSessions.textContent = metrics.sessions;
   ui.metricSets.textContent = metrics.sets;
   ui.metricVolume.textContent = metrics.volume;
@@ -509,16 +510,16 @@ const updateDashboard = () => {
   const volumeRangeValue = volumeRangeState || "7";
   const volumeByMuscle =
     volumeRangeValue === "all"
-      ? computeVolumeByMuscleRange("all", todayISO())
-      : computeVolumeByMuscle(Number(volumeRangeValue) || 7);
+      ? await computeVolumeByMuscleRange("all", todayISO())
+      : await computeVolumeByMuscle(Number(volumeRangeValue) || 7);
   const volumeData = buildSortedVolumeData(volumeByMuscle);
   renderPieChart(ui.volumeChart, volumeData, buildMuscleColors(volumeData));
 
-  renderMuscleDistribution();
+  await renderMuscleDistribution();
   renderDashboardSleepChart();
 };
-const renderCalendarView = () => {
-  renderDashboardCalendar();
+const renderCalendarView = async () => {
+  await renderDashboardCalendar();
   renderTrainingCalendar();
 };
 
@@ -553,20 +554,20 @@ const renderSessionsList = () => {
     item.querySelector("[data-action=\"delete\"]").addEventListener("click", async () => {
       await deleteSession(session.id);
       renderSessionsList();
-      updateDashboard();
-      renderCalendarView();
+      await updateDashboard();
+      await renderCalendarView();
     });
     ui.sessionList.appendChild(item);
   });
 };
 
-const renderMuscleDistribution = () => {
+const renderMuscleDistribution = async () => {
   if (!ui.muscleDistributionChart) return;
   const range = muscleRangeState || "7";
   const volumeByMuscle =
     range === "all"
-      ? computeVolumeByMuscleRange("all", todayISO())
-      : computeVolumeByMuscle(Number(range) || 7);
+      ? await computeVolumeByMuscleRange("all", todayISO())
+      : await computeVolumeByMuscle(Number(range) || 7);
   const data = buildSortedVolumeData(volumeByMuscle);
   renderPieChart(ui.muscleDistributionChart, data, buildMuscleColors(data));
 };
@@ -695,8 +696,8 @@ const handleSessionSubmit = async (event) => {
   };
   await saveSession(session);
   renderSessionsList();
-  updateDashboard();
-  renderCalendarView();
+  await updateDashboard();
+  await renderCalendarView();
   resetSessionForm();
 };
 
@@ -728,8 +729,8 @@ const renderMeals = () => {
     item.querySelector("[data-action=\"delete\"]").addEventListener("click", async () => {
       await deleteMeal(meal.id);
       renderMeals();
-      renderMacroChart();
-      renderCalendarView();
+      await renderMacroChart();
+      await renderCalendarView();
     });
     ui.mealList.appendChild(item);
   });
@@ -747,8 +748,8 @@ const addMealFromFood = async (food) => {
     notes: "Added from food search",
   });
   renderMeals();
-  renderMacroChart();
-  renderCalendarView();
+  await renderMacroChart();
+  await renderCalendarView();
 };
 
 const renderFoodSearch = (query) => {
@@ -798,8 +799,8 @@ const renderMacroTargets = () => {
   ui.targetHydration.value = targets.hydration || "";
 };
 
-const renderMacroChart = () => {
-  const progress = computeMacroProgress(todayISO());
+const renderMacroChart = async () => {
+  const progress = await computeMacroProgress(todayISO());
   const rings = {
     Protein: progress.protein,
     Carbs: progress.carbs,
@@ -809,9 +810,9 @@ const renderMacroChart = () => {
   renderRingChart(ui.macroChart, rings, { centerText });
 };
 
-const renderHydration = () => {
+const renderHydration = async () => {
   const targets = getMacroTargets();
-  const total = computeHydrationTotal(todayISO());
+  const total = await computeHydrationTotal(todayISO());
   const goal = Number(targets.hydration || 0);
   if (ui.hydrationTotal) ui.hydrationTotal.textContent = total;
   if (ui.hydrationGoal) ui.hydrationGoal.textContent = goal;
@@ -867,26 +868,21 @@ const renderRecoveryNotes = (date = ui.recoveryNotesDate?.value || todayISO()) =
   ui.recoveryNotesText.value = note?.notes || "";
 };
 
-const renderRecoveryTimeline = () => {
+const renderRecoveryTimeline = async () => {
   if (!ui.recoveryTimelineList) return;
-  const sleepMap = new Map((state.sleep || []).map((entry) => [entry.date, entry]));
-  const noteMap = new Map((state.recoveryNotes || []).map((entry) => [entry.date, entry]));
-  const dates = Array.from(new Set([...sleepMap.keys(), ...noteMap.keys()])).sort((a, b) =>
-    b.localeCompare(a)
-  );
+  const timeline = await computeRecoveryTimeline(30);
 
   ui.recoveryTimelineList.innerHTML = "";
-  if (dates.length === 0) {
+  if (!timeline.length) {
     ui.recoveryTimelineList.innerHTML = "<div class=\"muted\">No recovery entries yet.</div>";
     return;
   }
 
-  dates.slice(0, 30).forEach((date) => {
-    const sleep = sleepMap.get(date);
-    const note = noteMap.get(date);
-    const hours = sleep ? Number(sleep.hours || 0) : null;
-    const quality = sleep ? Number(sleep.quality || 0) : null;
-    const noteText = note?.notes?.trim() || "No notes";
+  timeline.forEach((entry) => {
+    const hours = entry?.hours || null;
+    const quality = entry?.quality || null;
+    const noteText = entry?.notes?.trim() || "No notes";
+    const date = entry?.date || todayISO();
     const dateLabel = parseLocalISO(date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
     const item = document.createElement("div");
@@ -1077,8 +1073,8 @@ const bindEvents = () => {
           ui.importStatus.textContent = `Imported ${imported} sets from ${file.name}.`;
         }
         renderSessionsList();
-        updateDashboard();
-        renderCalendarView();
+        await updateDashboard();
+        await renderCalendarView();
       } catch (error) {
         if (ui.importStatus) {
           ui.importStatus.textContent = "Import failed. Please check the CSV format.";
@@ -1091,7 +1087,7 @@ const bindEvents = () => {
   }
 
   document.querySelectorAll(".segment").forEach((segment) => {
-    segment.addEventListener("click", () => {
+    segment.addEventListener("click", async () => {
       const group = segment.dataset.group || "dashboard";
       document
         .querySelectorAll(`.segment[data-group="${group}"]`)
@@ -1102,21 +1098,21 @@ const bindEvents = () => {
         renderTrainingCalendar();
       } else if (group === "volume") {
         volumeRangeState = segment.dataset.range || "7";
-        updateDashboard();
+        await updateDashboard();
       } else if (group === "muscle") {
         muscleRangeState = segment.dataset.range || "7";
-        renderMuscleDistribution();
+        await renderMuscleDistribution();
       } else {
         calendarState.view = segment.dataset.view;
-        renderDashboardCalendar();
+        await renderDashboardCalendar();
       }
     });
   });
 
   if (ui.dashboardCalendarMonth) {
-    ui.dashboardCalendarMonth.addEventListener("change", (event) => {
+    ui.dashboardCalendarMonth.addEventListener("change", async (event) => {
       updateCalendarMonth(calendarState, event.target.value);
-      renderDashboardCalendar();
+      await renderDashboardCalendar();
     });
   }
   if (ui.trainingCalendarMonth) {
@@ -1132,7 +1128,7 @@ const bindEvents = () => {
       electrolytes: ui.habitElectrolytes.checked,
     });
     updateHabitsUI(selectedHabitDate);
-    renderCalendarView();
+    await renderCalendarView();
   });
 
   if (ui.progressExercise) {
@@ -1164,7 +1160,7 @@ const bindEvents = () => {
       const notes = ui.recoveryNotesText?.value || "";
       await saveRecoveryNote(date, notes);
       renderRecoveryNotes(date);
-      renderRecoveryTimeline();
+      await renderRecoveryTimeline();
     });
   }
   ui.addExerciseButton.addEventListener("click", () => {
@@ -1187,8 +1183,8 @@ const bindEvents = () => {
       fat: Number(ui.targetFat.value || 0),
       hydration: Number(ui.targetHydration.value || 0),
     });
-    renderMacroChart();
-    renderHydration();
+    await renderMacroChart();
+    await renderHydration();
   });
 
   ui.mealForm.addEventListener("submit", async (event) => {
@@ -1203,7 +1199,7 @@ const bindEvents = () => {
       notes: ui.mealNotes.value,
     });
     renderMeals();
-    renderMacroChart();
+    await renderMacroChart();
     ui.mealName.value = "";
     ui.mealCalories.value = "";
     ui.mealProtein.value = "";
@@ -1215,13 +1211,13 @@ const bindEvents = () => {
   if (ui.addHydrationButton) {
     ui.addHydrationButton.addEventListener("click", async () => {
       await addHydration(todayISO(), 250);
-      renderHydration();
+      await renderHydration();
     });
   }
   if (ui.removeHydrationButton) {
     ui.removeHydrationButton.addEventListener("click", async () => {
       await addHydration(todayISO(), -250);
-      renderHydration();
+      await renderHydration();
     });
   }
 
@@ -1233,8 +1229,8 @@ const bindEvents = () => {
       quality: Number(ui.sleepQuality.value || 3),
     });
     renderSleepChart();
-    renderRecoveryTimeline();
-    renderCalendarView();
+    await renderRecoveryTimeline();
+    await renderCalendarView();
   });
 };
 
@@ -1270,32 +1266,32 @@ const init = async () => {
   await initState();
   setDefaultDates();
   updateHabitsUI();
-  renderCalendarView();
-  updateDashboard();
+  await renderCalendarView();
+  await updateDashboard();
   renderSessionsList();
   renderMeals();
   renderFoodSearch();
   renderMacroTargets();
-  renderMacroChart();
-  renderHydration();
+  await renderMacroChart();
+  await renderHydration();
   renderSleepChart();
   renderRecoveryNotes();
-  renderRecoveryTimeline();
+  await renderRecoveryTimeline();
   resetSessionForm();
 
   bindEvents();
   initRouter((route) => {
-    requestAnimationFrame(() => {
-      if (route === "dashboard" || route === "training") updateDashboard();
+    requestAnimationFrame(async () => {
+      if (route === "dashboard" || route === "training") await updateDashboard();
       if (route === "nutrition") {
-        renderMacroChart();
-        renderHydration();
+        await renderMacroChart();
+        await renderHydration();
         renderFoodSearch();
       }
       if (route === "recovery") {
         renderSleepChart();
         renderRecoveryNotes();
-        renderRecoveryTimeline();
+        await renderRecoveryTimeline();
       }
     });
   });
@@ -1303,9 +1299,9 @@ const init = async () => {
   setupInstallPrompt();
 
   window.addEventListener("resize", () => {
-    updateDashboard();
-    renderMacroChart();
-    renderHydration();
+    void updateDashboard();
+    void renderMacroChart();
+    void renderHydration();
     renderSleepChart();
   });
 };
