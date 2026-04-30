@@ -9,6 +9,7 @@ import {
   saveSession,
   deleteSession,
   importWorkoutRows,
+  deleteAllTrainingData,
   saveMacroTargets,
   addHydration,
   saveSleepEntry,
@@ -224,6 +225,7 @@ const ui = {
   trainingCalendarMonth: document.getElementById("trainingCalendarMonth"),
   sessionList: document.getElementById("sessionList"),
   importWorkoutsButton: document.getElementById("importWorkoutsButton"),
+  deleteTrainingDataButton: document.getElementById("deleteTrainingDataButton"),
   workoutFileInput: document.getElementById("workoutFileInput"),
   importStatus: document.getElementById("importStatus"),
   addSessionButton: document.getElementById("addSessionButton"),
@@ -288,6 +290,26 @@ let editingSessionId = null;
 let selectedHabitDate = todayISO();
 let volumeRangeState = "7";
 let muscleRangeState = "7";
+
+const DEFAULT_MUSCLE_GROUPS = [
+  "Abs",
+  "Back",
+  "Biceps",
+  "Calves",
+  "Chest",
+  "Forearms",
+  "Glutes",
+  "Hamstrings",
+  "Hip Flexors",
+  "Lats",
+  "Lower Back",
+  "Quads",
+  "Rear Delts",
+  "Shoulders",
+  "Traps",
+  "Triceps",
+  "Upper Back",
+];
 
 const setDefaultDates = () => {
   const today = todayISO();
@@ -523,7 +545,13 @@ const renderCalendarView = async () => {
   renderTrainingCalendar();
 };
 
+const updateTrainingDeleteControl = () => {
+  if (!ui.deleteTrainingDataButton) return;
+  ui.deleteTrainingDataButton.disabled = state.workoutSets.length === 0 && state.legacySessions.length === 0;
+};
+
 const renderSessionsList = () => {
+  updateTrainingDeleteControl();
   ui.sessionList.innerHTML = "";
   if (state.sessions.length === 0) {
     ui.sessionList.innerHTML = "<div class=\"muted\">No sessions logged yet.</div>";
@@ -608,7 +636,34 @@ const createSetRow = () => {
   return row;
 };
 
-const createExerciseBlock = () => {
+const getMuscleGroupOptions = (selectedValue = "") => {
+  const options = new Map();
+  const registerOption = (value) => {
+    const label = String(value || "").trim();
+    if (!label) return;
+    const key = label.toLowerCase();
+    if (!options.has(key)) options.set(key, label);
+  };
+
+  DEFAULT_MUSCLE_GROUPS.forEach(registerOption);
+  state.workoutSets.forEach((row) => registerOption(row.muscle));
+  state.sessions.forEach((session) => {
+    (session.exercises || []).forEach((exercise) => registerOption(exercise.muscle));
+  });
+  registerOption(selectedValue);
+
+  const renderedOptions = Array.from(options.values())
+    .sort((a, b) => a.localeCompare(b))
+    .map((label) => {
+      const isSelected = label === selectedValue ? " selected" : "";
+      return `<option value="${label}"${isSelected}>${label}</option>`;
+    })
+    .join("");
+
+  return `<option value="">Select muscle group</option>${renderedOptions}`;
+};
+
+const createExerciseBlock = (selectedMuscle = "") => {
   const block = document.createElement("div");
   block.className = "exercise-block";
   block.innerHTML = `
@@ -619,7 +674,9 @@ const createExerciseBlock = () => {
       </label>
       <label>
         <span>Muscle Group</span>
-        <input class="exercise-muscle" type="text" placeholder="Chest" />
+        <select class="exercise-muscle">
+          ${getMuscleGroupOptions(selectedMuscle)}
+        </select>
       </label>
     </div>
     <div class="set-list"></div>
@@ -647,9 +704,8 @@ const loadSessionIntoForm = (session) => {
   ui.sessionNotes.value = session.notes || "";
   ui.exerciseBuilder.innerHTML = "";
   (session.exercises || []).forEach((exercise) => {
-    const block = createExerciseBlock();
+    const block = createExerciseBlock(exercise.muscle || "");
     block.querySelector(".exercise-name").value = exercise.name;
-    block.querySelector(".exercise-muscle").value = exercise.muscle || "";
     const setList = block.querySelector(".set-list");
     setList.innerHTML = "";
     (exercise.sets || []).forEach((set) => {
@@ -1083,6 +1139,26 @@ const bindEvents = () => {
       } finally {
         ui.workoutFileInput.value = "";
       }
+    });
+  }
+
+  if (ui.deleteTrainingDataButton) {
+    ui.deleteTrainingDataButton.addEventListener("click", async () => {
+      if (state.workoutSets.length === 0 && state.legacySessions.length === 0) {
+        if (ui.importStatus) ui.importStatus.textContent = "No training data to delete.";
+        updateTrainingDeleteControl();
+        return;
+      }
+      const confirmed = window.confirm("Delete all training data?");
+      if (!confirmed) return;
+      const deleted = await deleteAllTrainingData();
+      if (ui.importStatus) {
+        ui.importStatus.textContent =
+          deleted > 0 ? `Deleted ${deleted} training records.` : "No training data to delete.";
+      }
+      renderSessionsList();
+      await updateDashboard();
+      await renderCalendarView();
     });
   }
 

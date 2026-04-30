@@ -29,6 +29,11 @@ def parse_hevy_datetime(value: str) -> datetime | None:
         return parsed
     except ValueError:
         pass
+    for fmt in ("%b %d, %Y, %I:%M %p", "%B %d, %Y, %I:%M %p"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
     parts = [part.strip() for part in value.split(",")]
     if not parts:
         return None

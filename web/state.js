@@ -7,6 +7,7 @@
   getMacroProgress as fetchMacroProgress,
   getHydrationTotal as fetchHydrationTotal,
   getRecoveryTimeline as fetchRecoveryTimeline,
+  deleteTrainingData as requestDeleteTrainingData,
   put,
   remove,
   bulkPut,
@@ -239,6 +240,12 @@ const importWorkoutRows = async (rows) => {
   return normalized.length;
 };
 
+const deleteAllTrainingData = async () => {
+  const result = await requestDeleteTrainingData();
+  await loadAll();
+  return Number(result?.count || 0);
+};
+
 const importLegacySessions = async (sessions) => {
   if (!sessions.length) return 0;
   const rows = [];
@@ -460,6 +467,7 @@ export {
   saveSession,
   deleteSession,
   importWorkoutRows,
+  deleteAllTrainingData,
   saveMacroTargets,
   addHydration,
   saveSleepEntry,

@@ -58,6 +58,11 @@ const getHydrationTotal = async (date) =>
 const getRecoveryTimeline = async (limit = 30) =>
   requestJson(`${API_BASE}/analytics/recovery-timeline?limit=${encodeURIComponent(limit)}`);
 
+const deleteTrainingData = async () =>
+  requestJson(`${API_BASE}/training-data`, {
+    method: "DELETE",
+  });
+
 const put = async (storeName, item) => {
   const payload = { ...(item || {}) };
   const id = payload.id || makeId();
@@ -105,6 +110,7 @@ export {
   getMacroProgress,
   getHydrationTotal,
   getRecoveryTimeline,
+  deleteTrainingData,
   put,
   remove,
   bulkPut,

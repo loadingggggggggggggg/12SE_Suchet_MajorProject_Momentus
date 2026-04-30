@@ -165,6 +165,28 @@ def analytics_recovery_timeline(limit: int = 30) -> list[dict[str, Any]]:
     return get_analytics().build_recovery_timeline(limit)
 
 
+@app.delete("/api/training-data")
+def delete_training_data() -> dict[str, Any]:
+    with get_conn() as conn:
+        workout_sets_row = conn.execute(
+            "SELECT COUNT(*) AS count FROM items WHERE store = ?",
+            ("workoutSets",),
+        ).fetchone()
+        legacy_sessions_row = conn.execute(
+            "SELECT COUNT(*) AS count FROM items WHERE store = ?",
+            ("sessions",),
+        ).fetchone()
+        deleted_workout_sets = int(workout_sets_row["count"] or 0) if workout_sets_row else 0
+        deleted_legacy_sessions = int(legacy_sessions_row["count"] or 0) if legacy_sessions_row else 0
+        conn.execute("DELETE FROM items WHERE store IN (?, ?)", ("workoutSets", "sessions"))
+    return {
+        "ok": True,
+        "deletedWorkoutSets": deleted_workout_sets,
+        "deletedLegacySessions": deleted_legacy_sessions,
+        "count": deleted_workout_sets + deleted_legacy_sessions,
+    }
+
+
 @app.get("/api/{store}")
 def list_store(store: str) -> list[dict[str, Any]]:
     store = validate_store(store)
@@ -188,7 +210,6 @@ def delete_store_item(store: str, item_id: str) -> dict[str, Any]:
     with get_conn() as conn:
         conn.execute("DELETE FROM items WHERE store = ? AND id = ?", (store, item_id))
     return {"ok": True}
-
 
 @app.post("/api/{store}/bulk")
 def bulk_upsert(store: str, items: list[dict[str, Any]] = Body(...)) -> dict[str, Any]:
@@ -299,7 +320,10 @@ def seed_if_needed() -> dict[str, Any]:
         }
     ]
 
-    if not store_has_data("workoutSets"):
+    has_existing_seed_context = any(
+        store_has_data(store_name) for store_name in ("foods", "settings", "meals", "workoutSets", "sessions")
+    )
+    if not store_has_data("workoutSets") and not has_existing_seed_context:
         upsert_items("workoutSets", workout_sets)
         seeded = True
     existing_food_names = get_existing_food_names() if store_has_data("foods") else set()
