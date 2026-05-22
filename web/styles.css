@@ -2037,6 +2037,14 @@ body.landing-page .marketing-section { background: transparent; }
 }
 
 body.landing-page {
+  --intro-progress: 0;
+  --intro-exit-progress: 0;
+  --intro-content-opacity: 1;
+  --intro-content-shift: 0px;
+  --intro-canvas-scale: 1;
+  --intro-canvas-opacity: 1;
+  --intro-canvas-blur: 0px;
+  --intro-overlay-opacity: 0.16;
   --scroll-progress: 0;
   --bg-blur: 0px;
   --bg-scale: 1.08;
@@ -2051,6 +2059,67 @@ body.landing-page .landing-bg {
   transform-origin: center;
   transition: filter 0.2s linear, transform 0.2s linear, opacity 0.2s linear;
   will-change: filter, transform, opacity;
+}
+
+body.landing-page .landing-intro {
+  position: relative;
+  height: 245vh;
+  z-index: 1;
+}
+
+body.landing-page .landing-intro-sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: clip;
+}
+
+body.landing-page .landing-intro-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  filter: blur(var(--intro-canvas-blur));
+  transform: scale(var(--intro-canvas-scale));
+  transform-origin: center;
+  opacity: var(--intro-canvas-opacity);
+  transition: transform 0.18s linear, opacity 0.18s linear, filter 0.18s linear;
+  will-change: transform, opacity, filter;
+}
+
+body.landing-page #landingIntroCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.14), transparent 28%),
+    linear-gradient(180deg, rgba(8, 8, 8, 0.06), rgba(8, 8, 8, 0.24));
+}
+
+body.landing-page .landing-intro-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at center, transparent 38%, rgba(5, 5, 5, 0.24) 100%),
+    linear-gradient(180deg, rgba(8, 8, 8, 0.08), rgba(8, 8, 8, 0.74));
+  opacity: var(--intro-overlay-opacity);
+  transition: opacity 0.18s linear;
+  pointer-events: none;
+}
+
+body.landing-page .landing-content {
+  position: relative;
+  margin-top: -50vh;
+  z-index: 2;
+}
+
+body.landing-page.landing-intro-active .landing-shell {
+  opacity: var(--intro-content-opacity);
+  transform: translate3d(0, var(--intro-content-shift), 0);
+  transition: opacity 0.18s linear, transform 0.18s linear;
+}
+
+body.landing-page.landing-intro-active:not(.landing-intro-complete) .landing-shell {
+  pointer-events: none;
 }
 
 body.landing-page .landing-bg::before,
@@ -2082,16 +2151,27 @@ body.landing-page .landing-shell {
 }
 
 body.landing-page .marketing-header {
-  position: sticky;
+  position: fixed;
   top: 10px;
-  z-index: 12;
-  margin-top: 10px;
-  padding: 12px 18px;
+  left: 50%;
+  z-index: 16;
+  width: min(1180px, calc(100% - 28px));
+  margin-top: 0;
+  padding: 5px 14px;
   border-radius: 999px;
+  transform: translateX(-50%);
   background: rgba(12, 12, 12, 0.62);
   border: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(18px);
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+  transition: top 0.32s cubic-bezier(0.22, 1, 0.36, 1), width 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body.landing-page.landing-intro-complete .marketing-header {
+  top: 20px;
+  width: min(1200px, calc(100% - 18px));
+  padding: 10px 18px;
 }
 
 body.landing-page .marketing-brand span {
@@ -2142,33 +2222,33 @@ body.landing-page .nav-ghost {
 }
 
 body.landing-page .landing-shell {
-  padding: 24px 0 96px;
+  padding: 82px 0 96px;
   display: grid;
   gap: 24px;
 }
 
 body.landing-page .hero {
-  padding: 8px 0 8px;
+  padding: 10px 0 8px;
 }
 
 body.landing-page .hero-grid {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
   gap: 30px;
-  align-items: start;
+  align-items: center;
 }
 
-/* Make signup card span full width under the two-column hero */
 body.landing-page .hero-grid > .signup-card {
-  grid-column: 1 / -1;
   width: 100%;
+  max-width: 430px;
+  justify-self: end;
 }
 
 body.landing-page .hero-copy {
   display: grid;
   align-content: start;
   max-width: 640px;
-  padding-top: 6px;
+  padding-top: 14px;
 }
 
 body.landing-page .eyebrow {
@@ -2876,6 +2956,11 @@ body.landing-page.landing-motion-ready [data-reveal].is-visible .preview-bars sp
     max-width: none;
   }
 
+  body.landing-page .hero-grid > .signup-card {
+    max-width: none;
+    justify-self: stretch;
+  }
+
   body.landing-page .hero-stage {
     grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
   }
@@ -2933,6 +3018,14 @@ body.landing-page.landing-motion-ready [data-reveal].is-visible .preview-bars sp
 }
 
 @media (max-width: 720px) {
+  body.landing-page .landing-intro {
+    height: 190vh;
+  }
+
+  body.landing-page .landing-content {
+    margin-top: -32vh;
+  }
+
   body.landing-page .marketing-header,
   body.landing-page .marketing-footer,
   body.landing-page .landing-shell {
@@ -2940,14 +3033,23 @@ body.landing-page.landing-motion-ready [data-reveal].is-visible .preview-bars sp
   }
 
   body.landing-page .marketing-header {
-    position: relative;
-    top: 0;
-    margin-top: 8px;
-    padding: 12px 14px;
+    position: fixed;
+    top: 8px;
+    left: 50%;
+    width: min(100% - 20px, 1180px);
+    margin-top: 0;
+    padding: 5px 10px;
+    transform: translateX(-50%);
+  }
+
+  body.landing-page.landing-intro-complete .marketing-header {
+    top: 14px;
+    width: min(100% - 10px, 1180px);
+    padding: 9px 14px;
   }
 
   body.landing-page .landing-shell {
-    padding: 18px 0 72px;
+    padding: 74px 0 72px;
   }
 
   body.landing-page .hero {
@@ -3002,6 +3104,23 @@ body.landing-page.landing-motion-ready [data-reveal].is-visible .preview-bars sp
 }
 
 @media (prefers-reduced-motion: reduce) {
+  body.landing-page .landing-intro {
+    height: 100vh;
+  }
+
+  body.landing-page .landing-content {
+    margin-top: 0;
+  }
+
+  body.landing-page .landing-intro-frame,
+  body.landing-page .landing-shell {
+    transition: none !important;
+  }
+
+  body.landing-page .landing-intro-frame {
+    filter: none !important;
+  }
+
   body.landing-page .landing-bg {
     filter: none !important;
     transform: scale(1.08) !important;
@@ -3017,6 +3136,17 @@ body.landing-page.landing-motion-ready [data-reveal].is-visible .preview-bars sp
   body.landing-page .preview-bars span {
     transform: none !important;
     opacity: 1 !important;
+  }
+
+  body.landing-page.landing-intro-reduced-motion .landing-content {
+    opacity: 1 !important;
+    transform: none !important;
+    pointer-events: auto !important;
+  }
+
+  body.landing-page.landing-intro-reduced-motion .landing-shell {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 .date-nav {

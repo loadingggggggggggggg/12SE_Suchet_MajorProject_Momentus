@@ -5,6 +5,9 @@ const ui = {
   heroStartButton: document.getElementById("heroStartButton"),
   finalSignupButton: document.getElementById("finalSignupButton"),
   heroSignupCard: document.getElementById("heroSignupCard"),
+  landingIntro: document.getElementById("landingIntro"),
+  landingIntroCanvas: document.getElementById("landingIntroCanvas"),
+  landingContent: document.getElementById("landingContent"),
   signupTitle: document.getElementById("signupTitle"),
   signupLead: document.getElementById("signupLead"),
   landingSignupForm: document.getElementById("landingSignupForm"),
@@ -42,6 +45,20 @@ let onboardingState = {
 };
 let currentStepIndex = 0;
 let saveTimer = null;
+
+const INTRO_FRAME_CONFIG = Object.freeze({
+  basePath: "/static/assets/scrollanimation/",
+  prefix: "Pippit_0522_MomentusLogoCloud",
+  count: 147,
+  extension: ".jpg",
+  padLength: 3,
+  scrubEnd: 0.72,
+  revealStart: 0.3,
+});
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const clamp01 = (value) => clamp(value, 0, 1);
+const easeOutCubic = (value) => 1 - (1 - value) ** 3;
 
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -114,6 +131,253 @@ const closeOnboardingOverlay = () => {
   ui.onboardingOverlay.setAttribute("aria-hidden", "true");
   document.body.classList.remove("landing-onboarding-open");
   updateOverlayRoute(false);
+};
+
+const setupLandingIntro = () => {
+  if (!ui.landingIntro || !ui.landingIntroCanvas || !ui.landingContent) return;
+
+  const canvas = ui.landingIntroCanvas;
+  const context = canvas.getContext("2d");
+  if (!context) return;
+
+  const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const heroRevealTargets = [...new Set([...document.querySelectorAll(".hero [data-reveal]"), ui.heroSignupCard].filter(Boolean))];
+  const frameStates = new Array(INTRO_FRAME_CONFIG.count).fill(0);
+  const frameImages = new Array(INTRO_FRAME_CONFIG.count).fill(null);
+
+  let scrollRaf = 0;
+  let preloadTimer = 0;
+  let preloadCursor = 1;
+  let currentTargetFrame = 0;
+  let currentProgress = 0;
+  let currentMode = reducedMotionQuery.matches ? "reduced" : "animated";
+  let heroRevealed = false;
+
+  const setRootVar = (name, value) => document.body.style.setProperty(name, value);
+
+  const buildFrameUrl = (index) =>
+    `${INTRO_FRAME_CONFIG.basePath}${INTRO_FRAME_CONFIG.prefix}${String(index).padStart(INTRO_FRAME_CONFIG.padLength, "0")}${INTRO_FRAME_CONFIG.extension}`;
+
+  const ensureHeroReveal = () => {
+    if (heroRevealed) return;
+    heroRevealed = true;
+    heroRevealTargets.forEach((node) => node.classList.add("is-visible"));
+  };
+
+  const syncCanvasResolution = () => {
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(1, rect.width);
+    const height = Math.max(1, rect.height);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const pixelWidth = Math.max(1, Math.round(width * dpr));
+    const pixelHeight = Math.max(1, Math.round(height * dpr));
+
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    }
+
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { width, height };
+  };
+
+  const drawCoverFrame = (image) => {
+    if (!image) return;
+    const { width, height } = syncCanvasResolution();
+    const sourceWidth = image.naturalWidth || image.width;
+    const sourceHeight = image.naturalHeight || image.height;
+    if (!sourceWidth || !sourceHeight) return;
+
+    context.clearRect(0, 0, width, height);
+
+    const scale = Math.max(width / sourceWidth, height / sourceHeight);
+    const drawWidth = sourceWidth * scale;
+    const drawHeight = sourceHeight * scale;
+    const offsetX = (width - drawWidth) / 2;
+    const offsetY = (height - drawHeight) / 2;
+
+    context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+  };
+
+  const getBestLoadedFrameIndex = (preferredIndex) => {
+    if (frameStates[preferredIndex] === 2) return preferredIndex;
+    for (let offset = 1; offset < INTRO_FRAME_CONFIG.count; offset += 1) {
+      const lower = preferredIndex - offset;
+      if (lower >= 0 && frameStates[lower] === 2) return lower;
+      const upper = preferredIndex + offset;
+      if (upper < INTRO_FRAME_CONFIG.count && frameStates[upper] === 2) return upper;
+    }
+    return -1;
+  };
+
+  const renderFrame = (preferredIndex = currentTargetFrame) => {
+    const resolvedIndex = getBestLoadedFrameIndex(preferredIndex);
+    if (resolvedIndex === -1) return;
+    drawCoverFrame(frameImages[resolvedIndex]);
+  };
+
+  const requestFrame = (index) => {
+    if (index < 0 || index >= INTRO_FRAME_CONFIG.count || frameStates[index] !== 0) return;
+
+    frameStates[index] = 1;
+    const image = new Image();
+    image.decoding = "async";
+
+    image.addEventListener(
+      "load",
+      () => {
+        frameStates[index] = 2;
+        frameImages[index] = image;
+        if (index === 0 || index === currentTargetFrame || (currentMode === "reduced" && index === INTRO_FRAME_CONFIG.count - 1)) {
+          renderFrame(index);
+        }
+      },
+      { once: true }
+    );
+
+    image.addEventListener(
+      "error",
+      () => {
+        frameStates[index] = -1;
+      },
+      { once: true }
+    );
+
+    image.src = buildFrameUrl(index);
+  };
+
+  const scheduleProgressivePreload = () => {
+    if (currentMode === "reduced" || preloadTimer || preloadCursor >= INTRO_FRAME_CONFIG.count) return;
+
+    const pump = () => {
+      preloadTimer = 0;
+      let queued = 0;
+
+      while (preloadCursor < INTRO_FRAME_CONFIG.count && queued < 2) {
+        requestFrame(preloadCursor);
+        preloadCursor += 1;
+        queued += 1;
+      }
+
+      if (preloadCursor < INTRO_FRAME_CONFIG.count) {
+        preloadTimer = window.setTimeout(pump, 40);
+      }
+    };
+
+    pump();
+  };
+
+  const updateIntroState = (progress) => {
+    currentProgress = clamp01(progress);
+    const revealProgress =
+      currentProgress <= INTRO_FRAME_CONFIG.revealStart
+        ? 0
+        : clamp01((currentProgress - INTRO_FRAME_CONFIG.revealStart) / (1 - INTRO_FRAME_CONFIG.revealStart));
+    const exitProgress =
+      currentProgress <= INTRO_FRAME_CONFIG.scrubEnd
+        ? 0
+        : clamp01((currentProgress - INTRO_FRAME_CONFIG.scrubEnd) / (1 - INTRO_FRAME_CONFIG.scrubEnd));
+    const easedReveal = easeOutCubic(revealProgress);
+    const easedExit = easeOutCubic(exitProgress);
+    const contentOpacity = clamp01(easedReveal * 1.16);
+    const contentShift = Math.round((1 - easedReveal) * 34);
+
+    setRootVar("--intro-progress", currentProgress.toFixed(4));
+    setRootVar("--intro-exit-progress", exitProgress.toFixed(4));
+    setRootVar("--intro-content-opacity", contentOpacity.toFixed(4));
+    setRootVar("--intro-content-shift", `${contentShift}px`);
+    setRootVar("--intro-canvas-scale", `${(1 + easedExit * 0.24).toFixed(4)}`);
+    setRootVar("--intro-canvas-opacity", `${(1 - easedExit).toFixed(4)}`);
+    setRootVar("--intro-canvas-blur", `${(easedExit * 14).toFixed(2)}px`);
+    setRootVar("--intro-overlay-opacity", `${(0.16 + easedExit * 0.44).toFixed(4)}`);
+    setRootVar("--bg-scale", `${(1.08 + easedExit * 0.03).toFixed(4)}`);
+    setRootVar("--bg-shift", `${Math.round(currentProgress * -42)}px`);
+    setRootVar("--bg-opacity", `${(0.34 + easedExit * 0.1).toFixed(4)}`);
+    setRootVar("--bg-blur", `${(1 - easedExit) * 0.4}px`);
+
+    if (revealProgress > 0.04) ensureHeroReveal();
+    document.body.classList.toggle("landing-intro-complete", currentProgress >= 0.995);
+  };
+
+  const updateAnimatedFrame = () => {
+    scrollRaf = 0;
+    const scrollableDistance = Math.max(ui.landingIntro.offsetHeight - window.innerHeight, 1);
+    const introTop = ui.landingIntro.getBoundingClientRect().top;
+    const progress = clamp01(-introTop / scrollableDistance);
+    const scrubProgress = clamp01(progress / INTRO_FRAME_CONFIG.scrubEnd);
+    const targetFrame = Math.min(
+      INTRO_FRAME_CONFIG.count - 1,
+      Math.round(scrubProgress * (INTRO_FRAME_CONFIG.count - 1))
+    );
+
+    currentTargetFrame = targetFrame;
+    updateIntroState(progress);
+    requestFrame(targetFrame);
+    renderFrame(targetFrame);
+  };
+
+  const scheduleAnimatedUpdate = () => {
+    if (currentMode !== "animated" || scrollRaf) return;
+    scrollRaf = window.requestAnimationFrame(updateAnimatedFrame);
+  };
+
+  const applyReducedMotionState = () => {
+    currentMode = "reduced";
+    document.body.classList.remove("landing-intro-active");
+    document.body.classList.add("landing-intro-reduced-motion", "landing-intro-complete");
+    window.clearTimeout(preloadTimer);
+    preloadTimer = 0;
+    currentTargetFrame = INTRO_FRAME_CONFIG.count - 1;
+    requestFrame(currentTargetFrame);
+    updateIntroState(1);
+    ensureHeroReveal();
+    renderFrame(currentTargetFrame);
+  };
+
+  const applyAnimatedState = () => {
+    currentMode = "animated";
+    document.body.classList.remove("landing-intro-reduced-motion");
+    document.body.classList.add("landing-intro-active");
+    requestFrame(0);
+    renderFrame(0);
+    scheduleProgressivePreload();
+    updateAnimatedFrame();
+  };
+
+  requestFrame(0);
+
+  if (reducedMotionQuery.matches) {
+    applyReducedMotionState();
+  } else {
+    applyAnimatedState();
+  }
+
+  const handleViewportChange = () => {
+    renderFrame();
+    scheduleAnimatedUpdate();
+  };
+
+  const handleMotionPreferenceChange = (event) => {
+    if (event.matches) {
+      applyReducedMotionState();
+      return;
+    }
+    document.body.classList.remove("landing-intro-complete");
+    applyAnimatedState();
+  };
+
+  window.addEventListener("scroll", scheduleAnimatedUpdate, { passive: true });
+  window.addEventListener("resize", handleViewportChange, { passive: true });
+  window.addEventListener("orientationchange", handleViewportChange);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) handleViewportChange();
+  });
+
+  if (typeof reducedMotionQuery.addEventListener === "function") {
+    reducedMotionQuery.addEventListener("change", handleMotionPreferenceChange);
+  } else if (typeof reducedMotionQuery.addListener === "function") {
+    reducedMotionQuery.addListener(handleMotionPreferenceChange);
+  }
 };
 
 const updateSignedInCard = () => {
@@ -419,6 +683,7 @@ const bindPageControls = () => {
 
 const init = async () => {
   setupRevealAnimations();
+  setupLandingIntro();
   setupSpotlights();
   bindPageControls();
   bindOnboardingControls();

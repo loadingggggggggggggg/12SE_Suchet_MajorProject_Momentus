@@ -15,138 +15,87 @@
   </head>
   <body class="landing-page">
     <div class="landing-bg" aria-hidden="true"></div>
-
-    <header class="marketing-header">
-      <a class="marketing-brand" href="/">
-        <img src="/static/assets/Logo.png" alt="Momentus logo" />
-        <span>Momentus</span>
-      </a>
-      <nav class="marketing-nav" aria-label="Primary">
-        <a href="#system">Why it works</a>
-        <a href="#workflow">How it works</a>
-        <a href="#focus">Features</a>
-        <a class="nav-ghost" href="/login">Log in</a>
-      </nav>
-    </header>
-
-    <main class="landing-shell">
-      <section class="hero">
-        <div class="hero-grid">
-          <div class="hero-copy" data-reveal>
-            <span class="eyebrow">Strength tracking built for real consistency</span>
-            <h1>Train hard. Stay organized. Keep momentum.</h1>
-            <p class="hero-text">
-              Plan sessions, log meals, watch recovery, and keep your progress in one place without the clutter.
-            </p>
-            <div class="hero-actions">
-              <button class="primary-button hero-button" id="heroStartButton" type="button">
-                <span>Start free</span>
-              </button>
-              <a class="ghost-button hero-button" href="/app">
-                <span>See the app</span>
-              </a>
-            </div>
-          </div>
-
-          <div class="hero-stage" data-reveal>
-            <div class="hero-preview" data-spotlight>
-              <div class="preview-card">
-                <div class="preview-top">
-                  <div class="preview-dots" aria-hidden="true">
-                    <span class="preview-dot"></span>
-                    <span class="preview-dot"></span>
-                    <span class="preview-dot"></span>
-                  </div>
-                  <span class="preview-badge">Live dashboard</span>
-                </div>
-                <div class="preview-board">
-                  <div class="preview-column">
-                    <div class="preview-surface preview-surface-main">
-                      <span class="preview-label">This week</span>
-                      <div class="preview-metric-row">
-                        <strong>14,820 kg</strong>
-                        <span class="preview-trend">Volume holding steady across upper and lower sessions.</span>
-                      </div>
-                      <div class="preview-progress"><span style="width: 72%"></span></div>
-                    </div>
-                    <div class="preview-surface preview-chart-card">
-                      <div class="preview-chart-head">
-                        <span class="preview-label">Progress</span>
-                        <strong>Bench press trend</strong>
-                      </div>
-                      <div class="preview-bars" aria-hidden="true">
-                        <span style="height: 42%"></span>
-                        <span style="height: 60%"></span>
-                        <span style="height: 54%"></span>
-                        <span style="height: 74%"></span>
-                        <span style="height: 88%"></span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="preview-column">
-                    <div class="preview-surface preview-surface-metric">
-                      <span class="preview-label">Recovery</span>
-                      <strong>7.8 hrs sleep</strong>
-                      <p>Hydration, notes, and recovery cues stay attached to the same week.</p>
-                    </div>
-                    <div class="preview-surface preview-list-card">
-                      <span class="preview-label">Today</span>
-                      <div class="preview-list">
-                        <div><strong>Push day</strong><span>18 working sets</span></div>
-                        <div><strong>Macros</strong><span>2 meals logged</span></div>
-                        <div><strong>Hydration</strong><span>1.75 L so far</span></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="preview-float">
-                  <span class="preview-float-label">Momentus</span>
-                  <strong>Everything in one training rhythm</strong>
-                  <p>One system for the lifts, food, and recovery habits that move performance.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <article class="signup-card" id="heroSignupCard" data-spotlight data-reveal>
-            <h2 id="signupTitle">Create your account</h2>
-            <p class="auth-feedback" id="signupLead">Start with your account, then finish onboarding in the floating setup panel.</p>
-
-            <form class="auth-form" id="landingSignupForm">
-              <label>
-                <span>Display Name</span>
-                <input id="landingDisplayName" name="displayName" type="text" autocomplete="name" required />
-              </label>
-              <label>
-                <span>Email</span>
-                <input id="landingEmail" name="email" type="email" autocomplete="email" required />
-              </label>
-              <label>
-                <span>Password</span>
-                <input id="landingPassword" name="password" type="password" autocomplete="new-password" required />
-              </label>
-              <button class="primary-button signup-submit" id="landingSignupButton" type="submit">
-                <span class="button-label">Sign up</span>
-                <span class="button-loader" aria-hidden="true"></span>
-              </button>
-            </form>
-
-            <div id="landingSignedInState" hidden>
-              <p class="auth-feedback" id="landingSignedInCopy"></p>
-              <div class="hero-actions">
-                <a class="primary-button hero-card-button" id="openAppButton" href="/app">
-                  <span>Open app</span>
-                </a>
-                <button class="ghost-button hero-card-button" id="landingOpenOnboardingButton" type="button">
-                  <span>Resume onboarding</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="auth-feedback" id="landingSignupFeedback" aria-live="polite"></div>
-          </article>
+    <section class="landing-intro" id="landingIntro" aria-label="Momentus intro animation">
+      <div class="landing-intro-sticky">
+        <div class="landing-intro-frame">
+          <canvas id="landingIntroCanvas" aria-hidden="true"></canvas>
+          <div class="landing-intro-overlay" aria-hidden="true"></div>
         </div>
-      </section>
+      </div>
+    </section>
+
+    <div class="landing-content" id="landingContent">
+      <header class="marketing-header">
+        <a class="marketing-brand" href="/">
+          <img src="/static/assets/Logo.png" alt="Momentus logo" />
+          <span>Momentus</span>
+        </a>
+        <nav class="marketing-nav" aria-label="Primary">
+          <a href="#system">Why it works</a>
+          <a href="#workflow">How it works</a>
+          <a href="#focus">Features</a>
+          <a class="nav-ghost" href="/login">Log in</a>
+        </nav>
+      </header>
+
+      <main class="landing-shell">
+        <section class="hero">
+          <div class="hero-grid">
+            <div class="hero-copy" data-reveal>
+              <span class="eyebrow">Strength tracking built for real consistency</span>
+              <h1>Train hard. Stay organized. Keep momentum.</h1>
+              <p class="hero-text">
+                Plan sessions, log meals, watch recovery, and keep your progress in one place without the clutter.
+              </p>
+              <div class="hero-actions">
+                <button class="primary-button hero-button" id="heroStartButton" type="button">
+                  <span>Start free</span>
+                </button>
+                <a class="ghost-button hero-button" href="/app">
+                  <span>See the app</span>
+                </a>
+              </div>
+            </div>
+
+            <article class="signup-card" id="heroSignupCard" data-spotlight data-reveal>
+              <h2 id="signupTitle">Create your account</h2>
+              <p class="auth-feedback" id="signupLead">Start with your account, then finish onboarding in the floating setup panel.</p>
+
+              <form class="auth-form" id="landingSignupForm">
+                <label>
+                  <span>Display Name</span>
+                  <input id="landingDisplayName" name="displayName" type="text" autocomplete="name" required />
+                </label>
+                <label>
+                  <span>Email</span>
+                  <input id="landingEmail" name="email" type="email" autocomplete="email" required />
+                </label>
+                <label>
+                  <span>Password</span>
+                  <input id="landingPassword" name="password" type="password" autocomplete="new-password" required />
+                </label>
+                <button class="primary-button signup-submit" id="landingSignupButton" type="submit">
+                  <span class="button-label">Sign up</span>
+                  <span class="button-loader" aria-hidden="true"></span>
+                </button>
+              </form>
+
+              <div id="landingSignedInState" hidden>
+                <p class="auth-feedback" id="landingSignedInCopy"></p>
+                <div class="hero-actions">
+                  <a class="primary-button hero-card-button" id="openAppButton" href="/app">
+                    <span>Open app</span>
+                  </a>
+                  <button class="ghost-button hero-card-button" id="landingOpenOnboardingButton" type="button">
+                    <span>Resume onboarding</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="auth-feedback" id="landingSignupFeedback" aria-live="polite"></div>
+            </article>
+          </div>
+        </section>
 
       <section class="signal-strip" data-reveal>
         <article class="signal-card">
@@ -230,7 +179,8 @@
       </section>
 
      
-    </main>
+      </main>
+    </div>
 
     <div class="onboarding-overlay-shell" id="onboardingOverlay" aria-hidden="true">
       <div class="onboarding-scrim" id="onboardingScrim"></div>
