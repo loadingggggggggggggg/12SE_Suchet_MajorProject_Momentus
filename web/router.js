@@ -1,4 +1,4 @@
-﻿const routes = ["dashboard", "training", "nutrition", "recovery"];
+const routes = ["dashboard", "training", "nutrition", "recovery", "account"];
 
 const setActiveRoute = (route) => {
   routes.forEach((name) => {

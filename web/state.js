@@ -12,7 +12,6 @@
   remove,
   bulkPut,
   makeId,
-  seedIfNeeded,
 } from "./storage.js";
 
 const state = {
@@ -181,7 +180,6 @@ const buildSessionsFromWorkoutSets = (workoutSets) => {
 const todayISO = () => toLocalISO(new Date());
 
 const initState = async () => {
-  await seedIfNeeded();
   await loadAll();
   if (state.workoutSets.length === 0 && state.legacySessions.length > 0) {
     await importLegacySessions(state.legacySessions);
@@ -456,8 +454,10 @@ const computeWeekSummary = async (weekDates) => fetchWeekSummary(weekDates);
 
 const computeMacroProgress = async (date) => fetchMacroProgress(date);
 
-const computeRecoveryTimeline = async (limit = 30) => fetchRecoveryTimeline(limit);
-
+const computeRecoveryTimeline = async (limit = 30) => {
+  const result = await fetchRecoveryTimeline(limit);
+  return result?.entries ?? [];
+};
 export {
   state,
   initState,

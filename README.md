@@ -39,6 +39,27 @@ python -m uvicorn backend.main:app --reload
 
 Open `http://localhost:8000/` in your browser.
 
+### Password reset email setup
+
+The forgot-password flow sends reset links over SMTP. Configure these environment variables before starting the server:
+
+```bash
+MOMENTUS_SMTP_HOST=smtp.example.com
+MOMENTUS_SMTP_PORT=587
+MOMENTUS_SMTP_USERNAME=you@example.com
+MOMENTUS_SMTP_PASSWORD=your-password
+MOMENTUS_SMTP_FROM=you@example.com
+MOMENTUS_SMTP_USE_TLS=true
+MOMENTUS_SMTP_USE_SSL=false
+MOMENTUS_PUBLIC_BASE_URL=http://localhost:8000
+```
+
+If SMTP is not configured and you are running on `localhost`, Momentus now falls back to showing a development reset link directly in the forgot-password form. You can also force that behavior with:
+
+```bash
+MOMENTUS_ALLOW_DEV_RESET_LINKS=true
+```
+
 ## Notes
 
 - Opening `web/index.html` directly will not register the service worker.

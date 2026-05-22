@@ -4,520 +4,276 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#141414" />
-    <meta name="description" content="Momentus - training, nutrition, and recovery tracker." />
-    <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./assets/Logo.png" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css" />
-    <title>Momentus PWA</title>
+    <meta
+      name="description"
+      content="Momentus helps strength athletes track training, nutrition, recovery, and progress in one clean system."
+    />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/static/assets/Logo.png" type="image/png" />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <title>Momentus</title>
   </head>
-  <body>
-    <div class="splash" id="splash" aria-hidden="true">
-      <img class="splash-logo" src="./assets/Logo.png" alt="Momentus logo" />
-    </div>
-    <div class="app-shell">
-      <aside class="nav">
-        <div class="brand">
-          <img class="brand-logo" src="./assets/Logo.png" alt="Momentus logo" />
-          <div class="brand-copy">
-            <span class="brand-title">Momentus</span>
-            <span class="brand-subtitle">Training + Nutrition + Recovery</span>
+  <body class="landing-page">
+    <div class="landing-bg" aria-hidden="true"></div>
+
+    <header class="marketing-header">
+      <a class="marketing-brand" href="/">
+        <img src="/static/assets/Logo.png" alt="Momentus logo" />
+        <span>Momentus</span>
+      </a>
+      <nav class="marketing-nav" aria-label="Primary">
+        <a href="#system">Why it works</a>
+        <a href="#workflow">How it works</a>
+        <a href="#focus">Features</a>
+        <a class="nav-ghost" href="/login">Log in</a>
+      </nav>
+    </header>
+
+    <main class="landing-shell">
+      <section class="hero">
+        <div class="hero-grid">
+          <div class="hero-copy" data-reveal>
+            <span class="eyebrow">Strength tracking built for real consistency</span>
+            <h1>Train hard. Stay organized. Keep momentum.</h1>
+            <p class="hero-text">
+              Plan sessions, log meals, watch recovery, and keep your progress in one place without the clutter.
+            </p>
+            <div class="hero-actions">
+              <button class="primary-button hero-button" id="heroStartButton" type="button">
+                <span>Start free</span>
+              </button>
+              <a class="ghost-button hero-button" href="/app">
+                <span>See the app</span>
+              </a>
+            </div>
           </div>
-        </div>
-        <nav class="nav-links">
-          <button class="nav-link active" data-route="dashboard">
-            <span class="nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-                <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-                <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-                <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-              </svg>
-            </span>
-            <span>Dashboard</span>
-          </button>
-          <button class="nav-link" data-route="training">
-            <span class="nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 10v4"></path>
-                <path d="M7 9v6"></path>
-                <path d="M10 8v8"></path>
-                <path d="M14 8v8"></path>
-                <path d="M17 9v6"></path>
-                <path d="M20 10v4"></path>
-                <path d="M10 12h4"></path>
-              </svg>
-            </span>
-            <span>Training</span>
-          </button>
-          <button class="nav-link" data-route="nutrition">
-            <span class="nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 7c-4 0-7 3-7 7s3 7 7 7 7-3 7-7-3-7-7-7z"></path>
-                <path d="M12 7c0-2 1-3 3-4"></path>
-                <path d="M9 6c1-2 3-3 5-3"></path>
-              </svg>
-            </span>
-            <span>Nutrition</span>
-          </button>
-          <button class="nav-link" data-route="recovery">
-            <span class="nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 10h18v8H3z"></path>
-                <path d="M7 10V7h6v3"></path>
-                <path d="M6 18h12"></path>
-              </svg>
-            </span>
-            <span>Recovery</span>
-          </button>
-        </nav>
-        <div class="nav-footer">
-          <button class="ghost-button" id="installButton" type="button">Install App</button>
-        </div>
-      </aside>
 
-      <main class="main">
-        <header class="topbar">
-          <div>
-            <p class="topbar-greeting">Hey, Suchet</p>
-            <p class="topbar-subtitle">Track every rep, meal, and recovery step.</p>
-          </div>
-          <div class="topbar-meta">
-            <div class="topbar-date" id="todayLabel">---</div>
-            <div class="status-pill" id="syncStatus">Local only</div>
-          </div>
-        </header>
-
-        <section class="screen active" id="screen-dashboard">
-          <div class="bento-grid">
-            <article class="card" id="volumeSplitCard">
-              <div class="card-header">
-                <h3>Volume Split</h3>
-                <div class="segmented">
-                  <button class="segment active" data-group="volume" data-range="7">7d</button>
-                  <button class="segment" data-group="volume" data-range="30">30d</button>
-                  <button class="segment" data-group="volume" data-range="90">90d</button>
-                  <button class="segment" data-group="volume" data-range="all">All</button>
-                </div>
-              </div>
-              <canvas id="volumeChart" width="300" height="160"></canvas>
-            </article>
-
-            <article class="card span-2" id="calendarCard">
-              <div class="card-header">
-                <h3>Calendar</h3>
-                <div class="calendar-controls">
-                  <div class="segmented">
-                    <button class="segment active" data-group="dashboard" data-view="month">Month</button>
-                    <button class="segment" data-group="dashboard" data-view="week">Week</button>
-                    <button class="segment" data-group="dashboard" data-view="day">Day</button>
+          <div class="hero-stage" data-reveal>
+            <div class="hero-preview" data-spotlight>
+              <div class="preview-card">
+                <div class="preview-top">
+                  <div class="preview-dots" aria-hidden="true">
+                    <span class="preview-dot"></span>
+                    <span class="preview-dot"></span>
+                    <span class="preview-dot"></span>
                   </div>
-                  <div class="calendar-filters">
-                    <select id="dashboardCalendarMonth">
-                      <option value="0">Jan</option>
-                      <option value="1">Feb</option>
-                      <option value="2">Mar</option>
-                      <option value="3">Apr</option>
-                      <option value="4">May</option>
-                      <option value="5">Jun</option>
-                      <option value="6">Jul</option>
-                      <option value="7">Aug</option>
-                      <option value="8">Sep</option>
-                      <option value="9">Oct</option>
-                      <option value="10">Nov</option>
-                      <option value="11">Dec</option>
-                    </select>
-                  </div>
+                  <span class="preview-badge">Live dashboard</span>
                 </div>
-              </div>
-              <div class="calendar" id="calendarView"></div>
-              <div class="week-summary" id="weekSummary"></div>
-            </article>
-
-            <article class="card" id="habitsCard">
-              <div class="card-header">
-                <h3>Daily Habits</h3>
-                <span class="muted" id="habitDateLabel">Today</span>
-              </div>
-              <div class="habit-list">
-                <label class="habit-item">
-                  <input type="checkbox" id="habitCreatine" />
-                  <span>Creatine taken</span>
-                </label>
-                <label class="habit-item">
-                  <input type="checkbox" id="habitElectrolytes" />
-                  <span>Electrolytes taken</span>
-                </label>
-              </div>
-              <div class="streak" id="habitStreak">Streak: 0 days</div>
-              <button class="primary-button" id="saveHabitsButton" type="button">Save Habits</button>
-            </article>
-
-            <article class="card" id="summaryCard">
-              <div class="card-header">
-                <h3>Training Summary</h3>
-                <span class="muted">Last 7 days</span>
-              </div>
-              <div class="metric-grid">
-                <div class="metric">
-                  <span class="metric-label">Sessions</span>
-                  <span class="metric-value" id="metricSessions">0</span>
-                </div>
-                <div class="metric">
-                  <span class="metric-label">Total Sets</span>
-                  <span class="metric-value" id="metricSets">0</span>
-                </div>
-                <div class="metric">
-                  <span class="metric-label">Volume Load</span>
-                  <span class="metric-value" id="metricVolume">0</span>
-                </div>
-                <div class="metric">
-                  <span class="metric-label">PRs</span>
-                  <span class="metric-value" id="metricPRs">0</span>
-                </div>
-              </div>
-            </article>
-
-            <article class="card span-2">
-              <div class="card-header">
-                <h3>Progress (Weight / Reps)</h3>
-                <span class="muted">Auto-updates from your log</span>
-              </div>
-              <div class="chart-filters">
-                <label class="inline-field">
-                  <span>Exercise</span>
-                  <input id="progressExercise" list="exerciseOptions" placeholder="All exercises" />
-                  <datalist id="exerciseOptions"></datalist>
-                </label>
-                <label class="inline-field">
-                  <span>Range</span>
-                  <select id="progressRange">
-                    <option value="7">7 days</option>
-                    <option value="30" selected>30 days</option>
-                    <option value="90">90 days</option>
-                    <option value="all">All time</option>
-                  </select>
-                </label>
-              </div>
-              <canvas id="progressChart" width="600" height="220"></canvas>
-            </article>
-
-            <article class="card" id="dashboardSleepCard">
-              <div class="card-header">
-                <h3>Sleep Hours</h3>
-                <span class="muted">Last 7 days</span>
-              </div>
-              <canvas id="dashboardSleepChart" width="300" height="220"></canvas>
-            </article>
-          </div>
-        </section>
-
-        <section class="screen" id="screen-training">
-          <div class="bento-grid training-grid">
-            <article class="card trend-card" id="trainingCalendarCard">
-              <div class="card-header">
-                <h3>Training Calendar</h3>
-                <div class="calendar-controls">
-                  <div class="segmented">
-                    <button class="segment active" data-group="training" data-view="month">Month</button>
-                    <button class="segment" data-group="training" data-view="week">Week</button>
-                    <button class="segment" data-group="training" data-view="day">Day</button>
-                  </div>
-                  <div class="calendar-filters">
-                    <select id="trainingCalendarMonth">
-                      <option value="0">Jan</option>
-                      <option value="1">Feb</option>
-                      <option value="2">Mar</option>
-                      <option value="3">Apr</option>
-                      <option value="4">May</option>
-                      <option value="5">Jun</option>
-                      <option value="6">Jul</option>
-                      <option value="7">Aug</option>
-                      <option value="8">Sep</option>
-                      <option value="9">Oct</option>
-                      <option value="10">Nov</option>
-                      <option value="11">Dec</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <div class="calendar" id="trainingCalendarView"></div>
-            </article>
-
-            <article class="card muscle-card" id="muscleDistributionCard">
-              <div class="card-header">
-                <h3>Muscle Group Distribution</h3>
-                <span class="muted">Sets per muscle</span>
-              </div>
-              <div class="segmented">
-                <button class="segment active" data-group="muscle" data-range="7">7d</button>
-                <button class="segment" data-group="muscle" data-range="30">30d</button>
-                <button class="segment" data-group="muscle" data-range="90">90d</button>
-                <button class="segment" data-group="muscle" data-range="all">All</button>
-              </div>
-              <canvas id="muscleDistributionChart" width="420" height="220"></canvas>
-            </article>
-
-            <article class="card sessions-card" id="trainingListCard">
-              <div class="card-header">
-                <h3>Sessions</h3>
-                <div class="header-actions">
-                  <button class="ghost-button" id="importWorkoutsButton" type="button">Import CSV</button>
-                  <button class="ghost-button danger" id="deleteTrainingDataButton" type="button" disabled>Delete All Data</button>
-                  <input class="file-input" id="workoutFileInput" type="file" accept=".csv" />
-                  <button class="ghost-button" id="addSessionButton" type="button">New Session</button>
-                </div>
-              </div>
-              <div class="muted" id="importStatus"></div>
-              <div class="list" id="sessionList"></div>
-            </article>
-
-            <article class="card session-form-card" id="sessionFormCard">
-              <div class="card-header">
-                <h3>Add Session</h3>
-                <span class="muted">Log sets + notes</span>
-              </div>
-              <form id="sessionForm" class="form">
-                <div class="form-row">
-                  <label>
-                    <span>Date</span>
-                    <input type="date" id="sessionDate" required />
-                  </label>
-                  <label>
-                    <span>Routine Name</span>
-                    <input type="text" id="sessionTitle" placeholder="Push day" required />
-                  </label>
-                </div>
-                <label>
-                  <span>Workout Notes</span>
-                  <textarea id="sessionNotes" rows="2" placeholder="Felt strong on bench..."></textarea>
-                </label>
-                <div class="exercise-builder" id="exerciseBuilder"></div>
-                <button class="ghost-button" id="addExerciseButton" type="button">Add Exercise</button>
-                <div class="form-actions">
-                  <button class="primary-button" type="submit">Save Session</button>
-                  <button class="ghost-button" id="resetSessionButton" type="button">Reset</button>
-                </div>
-              </form>
-            </article>
-          </div>
-        </section>
-
-        <section class="screen" id="screen-nutrition">
-          <div class="bento-grid nutrition-grid">
-            <article class="card compact-card" id="macroChartCard">
-              <div class="card-header">
-                <h3>Macro Split</h3>
-                <span class="muted">Today</span>
-              </div>
-              <div class="macro-chart-wrap">
-                <canvas id="macroChart" width="260" height="100"></canvas>
-              </div>
-            </article>
-
-            <div class="macro-stack">
-              <article class="card compact-card" id="macroTargetsCard">
-                <div class="card-header">
-                  <h3>Macro Targets</h3>
-                  <span class="muted">Daily goals</span>
-                </div>
-                <form id="macroTargetsForm" class="form">
-                  <div class="form-row">
-                    <label>
-                      <span>Calories</span>
-                      <input type="number" id="targetCalories" placeholder="2600" />
-                    </label>
-                    <label>
-                      <span>Protein (g)</span>
-                      <input type="number" id="targetProtein" placeholder="180" />
-                    </label>
-                  </div>
-                  <div class="form-row">
-                    <label>
-                      <span>Carbs (g)</span>
-                      <input type="number" id="targetCarbs" placeholder="250" />
-                    </label>
-                    <label>
-                      <span>Fat (g)</span>
-                      <input type="number" id="targetFat" placeholder="70" />
-                    </label>
-                    <div class="hydration-target-group">
-                      <label>
-                        <span>Hydration (ml)</span>
-                        <input type="number" id="targetHydration" placeholder="2500" />
-                      </label>
-                      <button class="primary-button target-save" type="submit">Save</button>
+                <div class="preview-board">
+                  <div class="preview-column">
+                    <div class="preview-surface preview-surface-main">
+                      <span class="preview-label">This week</span>
+                      <div class="preview-metric-row">
+                        <strong>14,820 kg</strong>
+                        <span class="preview-trend">Volume holding steady across upper and lower sessions.</span>
+                      </div>
+                      <div class="preview-progress"><span style="width: 72%"></span></div>
+                    </div>
+                    <div class="preview-surface preview-chart-card">
+                      <div class="preview-chart-head">
+                        <span class="preview-label">Progress</span>
+                        <strong>Bench press trend</strong>
+                      </div>
+                      <div class="preview-bars" aria-hidden="true">
+                        <span style="height: 42%"></span>
+                        <span style="height: 60%"></span>
+                        <span style="height: 54%"></span>
+                        <span style="height: 74%"></span>
+                        <span style="height: 88%"></span>
+                      </div>
                     </div>
                   </div>
-                </form>
-              </article>
+                  <div class="preview-column">
+                    <div class="preview-surface preview-surface-metric">
+                      <span class="preview-label">Recovery</span>
+                      <strong>7.8 hrs sleep</strong>
+                      <p>Hydration, notes, and recovery cues stay attached to the same week.</p>
+                    </div>
+                    <div class="preview-surface preview-list-card">
+                      <span class="preview-label">Today</span>
+                      <div class="preview-list">
+                        <div><strong>Push day</strong><span>18 working sets</span></div>
+                        <div><strong>Macros</strong><span>2 meals logged</span></div>
+                        <div><strong>Hydration</strong><span>1.75 L so far</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="preview-float">
+                  <span class="preview-float-label">Momentus</span>
+                  <strong>Everything in one training rhythm</strong>
+                  <p>One system for the lifts, food, and recovery habits that move performance.</p>
+                </div>
+              </div>
+            </div>
+          </div>
 
-              <article class="card compact-card" id="hydrationCard">
-                <div class="card-header">
-                  <h3>Hydration</h3>
-                  <span class="muted">Today</span>
-                </div>
-                <div class="hydration-row">
-                  <div class="hydration-actions">
-                    <button class="ghost-button" id="removeHydrationButton" type="button">- 250 ml</button>
-                    <button class="primary-button" id="addHydrationButton" type="button">+ 250 ml</button>
-                  </div>
-                  <div class="hydration-summary">
-                    <div class="hydration-total"><span id="hydrationTotal">0</span> ml</div>
-                    <div class="muted">Goal: <span id="hydrationGoal">0</span> ml</div>
-                  </div>
-                </div>
-                <div class="progress-bar">
-                  <span id="hydrationProgress"></span>
-                </div>
-              </article>
+          <article class="signup-card" id="heroSignupCard" data-spotlight data-reveal>
+            <h2 id="signupTitle">Create your account</h2>
+            <p class="auth-feedback" id="signupLead">Start with your account, then finish onboarding in the floating setup panel.</p>
+
+            <form class="auth-form" id="landingSignupForm">
+              <label>
+                <span>Display Name</span>
+                <input id="landingDisplayName" name="displayName" type="text" autocomplete="name" required />
+              </label>
+              <label>
+                <span>Email</span>
+                <input id="landingEmail" name="email" type="email" autocomplete="email" required />
+              </label>
+              <label>
+                <span>Password</span>
+                <input id="landingPassword" name="password" type="password" autocomplete="new-password" required />
+              </label>
+              <button class="primary-button signup-submit" id="landingSignupButton" type="submit">
+                <span class="button-label">Sign up</span>
+                <span class="button-loader" aria-hidden="true"></span>
+              </button>
+            </form>
+
+            <div id="landingSignedInState" hidden>
+              <p class="auth-feedback" id="landingSignedInCopy"></p>
+              <div class="hero-actions">
+                <a class="primary-button hero-card-button" id="openAppButton" href="/app">
+                  <span>Open app</span>
+                </a>
+                <button class="ghost-button hero-card-button" id="landingOpenOnboardingButton" type="button">
+                  <span>Resume onboarding</span>
+                </button>
+              </div>
             </div>
 
-            <article class="card" id="foodSearchCard">
-              <div class="card-header">
-                <h3>Food Search</h3>
-                <span class="muted">Lookup macros</span>
-              </div>
-              <label class="inline-field">
-                <span>Search</span>
-                <input type="search" id="foodSearchInput" placeholder="Chicken breast..." />
-              </label>
-              <div class="list" id="foodSearchResults"></div>
-            </article>
+            <div class="auth-feedback" id="landingSignupFeedback" aria-live="polite"></div>
+          </article>
+        </div>
+      </section>
 
-            <article class="card" id="mealCard">
-              <div class="card-header">
-                <h3>Add Custom Meal</h3>
-                <span class="muted">Each meal builds today’s totals</span>
-              </div>
-              <form id="mealForm" class="form">
-                <div class="form-row">
-                  <label>
-                    <span>Date</span>
-                    <input type="date" id="mealDate" />
-                  </label>
-                  <label>
-                    <span>Meal name</span>
-                    <input type="text" id="mealName" placeholder="Breakfast bowl" />
-                  </label>
-                </div>
-                <div class="form-row">
-                  <label>
-                    <span>Calories</span>
-                    <input type="number" id="mealCalories" />
-                  </label>
-                  <label>
-                    <span>Protein (g)</span>
-                    <input type="number" id="mealProtein" />
-                  </label>
-                </div>
-                <div class="form-row">
-                  <label>
-                    <span>Carbs (g)</span>
-                    <input type="number" id="mealCarbs" />
-                  </label>
-                  <label>
-                    <span>Fat (g)</span>
-                    <input type="number" id="mealFat" />
-                  </label>
-                </div>
-                <label>
-                  <span>Meal notes</span>
-                  <textarea id="mealNotes" rows="2" placeholder="Post workout shake"></textarea>
-                </label>
-                <button class="primary-button" type="submit">Add Meal</button>
-              </form>
-              <div class="list" id="mealList"></div>
-            </article>
+      <section class="signal-strip" data-reveal>
+        <article class="signal-card">
+          <span class="signal-value">1 app</span>
+          <p>Training, macros, hydration, sleep, and notes in the same daily loop.</p>
+        </article>
+        <article class="signal-card">
+          <span class="signal-value">Fast logging</span>
+          <p>Rounded, app-like inputs keep updates quick on desktop and mobile.</p>
+        </article>
+        <article class="signal-card">
+          <span class="signal-value">Your data</span>
+          <p>Each account keeps its own saved progress, onboarding profile, and settings.</p>
+        </article>
+      </section>
+
+      <section class="marketing-section" id="system">
+        <div class="section-heading" data-reveal>
+          <h2>Why Momentus works</h2>
+        </div>
+        <div class="system-grid">
+          <article class="system-card" data-spotlight data-reveal>
+            <span class="system-index">01</span>
+            <h3>One place for the whole week</h3>
+            <p>Sessions, meals, hydration, sleep, and notes all stay tied to the same training picture.</p>
+          </article>
+          <article class="system-card" data-spotlight data-reveal>
+            <span class="system-index">02</span>
+            <h3>Built for strength athletes</h3>
+            <p>Volume, muscle distribution, session trends, and habits stay front and center.</p>
+          </article>
+          <article class="system-card" data-spotlight data-reveal>
+            <span class="system-index">03</span>
+            <h3>Account-based from day one</h3>
+            <p>Your saved data travels with your login instead of being stuck to one browser.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="marketing-section" id="workflow">
+        <div class="section-heading" data-reveal>
+          <h2>How it works</h2>
+        </div>
+        <div class="workflow-track">
+          <article class="workflow-card" data-spotlight data-reveal>
+            <span class="step-number">1</span>
+            <h3>Create your account</h3>
+            <p>Sign up above with your name, email, and password.</p>
+          </article>
+          <article class="workflow-card" data-spotlight data-reveal>
+            <span class="step-number">2</span>
+            <h3>Finish onboarding</h3>
+            <p>The floating setup asks a few quick questions and saves as you go.</p>
+          </article>
+          <article class="workflow-card" data-spotlight data-reveal>
+            <span class="step-number">3</span>
+            <h3>Open the app</h3>
+            <p>Start logging training, meals, recovery, and habits inside your own account.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="marketing-section" id="focus">
+        <div class="section-heading" data-reveal>
+          <h2>Core features</h2>
+        </div>
+        <div class="focus-grid">
+          <article class="focus-card" data-spotlight data-reveal>
+            <h3>Training</h3>
+            <p>Sessions, imported sets, progress charts, and muscle distribution views.</p>
+          </article>
+          <article class="focus-card" data-spotlight data-reveal>
+            <h3>Nutrition</h3>
+            <p>Macro targets, hydration, meals, and reusable foods in the same flow.</p>
+          </article>
+          <article class="focus-card" data-spotlight data-reveal>
+            <h3>Recovery</h3>
+            <p>Sleep, notes, and habits that stay linked to the training week they support.</p>
+          </article>
+        </div>
+      </section>
+
+     
+    </main>
+
+    <div class="onboarding-overlay-shell" id="onboardingOverlay" aria-hidden="true">
+      <div class="onboarding-scrim" id="onboardingScrim"></div>
+
+      <button class="onboarding-peek" id="onboardingPeek" type="button">
+        <span class="onboarding-peek-label">Setup saved</span>
+        <strong id="onboardingPeekText">Resume onboarding</strong>
+      </button>
+
+      <section class="onboarding-float-card" aria-labelledby="onboardingTitle">
+        <div class="onboarding-float-top">
+          <div>
+            <span class="onboarding-step-count" id="onboardingStepCount">Step 1</span>
           </div>
-        </section>
-
-        <section class="screen" id="screen-recovery">
-          <div class="bento-grid recovery-grid">
-            <article class="card" id="sleepLogCard">
-              <div class="card-header">
-                <h3>Sleep Log</h3>
-                <span class="muted">Hours + quality</span>
-              </div>
-              <form id="sleepForm" class="form">
-                <div class="form-row">
-                  <label>
-                    <span>Date</span>
-                    <input type="date" id="sleepDate" />
-                  </label>
-                  <label>
-                    <span>Hours</span>
-                    <input type="number" id="sleepHours" step="0.1" />
-                  </label>
-                </div>
-                <label>
-                  <span>Quality (1-5)</span>
-                  <input type="range" id="sleepQuality" min="1" max="5" value="3" />
-                </label>
-                <button class="primary-button" type="submit">Save Sleep</button>
-              </form>
-            </article>
-
-            <article class="card" id="sleepTrendCard">
-              <div class="card-header">
-                <h3>Sleep Trend</h3>
-                <span class="muted" id="sleepTrendSubtitle">Last 14 days</span>
-              </div>
-              <div class="chart-filters">
-                <label class="inline-field">
-                  <span>Range</span>
-                  <select id="sleepRange">
-                    <option value="7">7 days</option>
-                    <option value="14" selected>14 days</option>
-                    <option value="30">30 days</option>
-                    <option value="90">90 days</option>
-                    <option value="all">All time</option>
-                  </select>
-                </label>
-                <label class="inline-field">
-                  <span>Metric</span>
-                  <select id="sleepMetric">
-                    <option value="hours" selected>Hours</option>
-                    <option value="quality">Quality</option>
-                  </select>
-                </label>
-              </div>
-              <canvas id="sleepChart" width="600" height="220"></canvas>
-            </article>
-
-            <article class="card" id="recoveryTimelineCard">
-              <div class="card-header">
-                <h3>Recovery Timeline</h3>
-                <span class="muted">Sleep + notes + rating</span>
-              </div>
-              <div class="timeline-list" id="recoveryTimelineList"></div>
-            </article>
-
-            <article class="card" id="recoveryNotesCard">
-              <div class="card-header">
-                <h3>Recovery Notes</h3>
-                <span class="muted">Optional reflections</span>
-              </div>
-              <form class="form" id="recoveryNotesForm">
-                <div class="form-row">
-                  <label>
-                    <span>Date</span>
-                    <input type="date" id="recoveryNotesDate" />
-                  </label>
-                </div>
-                <label>
-                  <span>Notes</span>
-                  <textarea class="notes" id="recoveryNotesText" placeholder="Mobility, soreness, stress..." rows="8"></textarea>
-                </label>
-                <div class="form-actions">
-                  <button class="primary-button" type="submit">Save Notes</button>
-                </div>
-              </form>
-            </article>
+          <div class="onboarding-top-actions">
+            <button class="ghost-button" id="minimizeOnboardingButton" type="button">Minimize</button>
+            <button class="ghost-button" id="closeOnboardingButton" type="button">Close</button>
           </div>
-        </section>
-      </main>
+        </div>
+
+        <div class="onboarding-float-copy">
+          <div class="progress-track progress-track-light">
+            <span id="onboardingProgress"></span>
+          </div>
+          <h2 id="onboardingTitle">Set up your training profile</h2>
+          <p id="onboardingHelper">We’ll save each step to your account as you go.</p>
+        </div>
+
+        <form class="onboarding-form onboarding-form-light" id="onboardingForm"></form>
+        <div class="auth-feedback" id="onboardingFeedback" aria-live="polite"></div>
+
+        <div class="onboarding-footer-light">
+          <div class="onboarding-actions">
+            <button class="ghost-button" id="backOnboardingButton" type="button">Back</button>
+            <button class="ghost-button" id="skipOnboardingButton" type="button">Skip for now</button>
+          </div>
+          <button class="primary-button" id="nextOnboardingButton" type="button">
+            <span>Next</span>
+          </button>
+        </div>
+      </section>
     </div>
 
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="/static/landing.js"></script>
   </body>
 </html>

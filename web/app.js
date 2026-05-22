@@ -29,6 +29,17 @@ import {
   saveRecoveryNote,
   getRecoveryNoteForDate,
 } from "./state.js";
+import {
+  changePassword,
+  getAccountExportUrl,
+  getCurrentUser,
+  getOnboarding,
+  logout,
+  setUnauthorizedHandler,
+  updateOnboarding,
+  updateProfile,
+} from "./storage.js";
+import { ONBOARDING_STEPS, ONBOARDING_VERSION } from "./onboarding-config.js";
 
 const setupSplash = () => {
   const splash = document.getElementById("splash");
@@ -38,15 +49,9 @@ const setupSplash = () => {
     splash.classList.add("splash--hide");
     const remove = () => splash.remove();
     splash.addEventListener("transitionend", remove, { once: true });
-    if (prefersReduced) {
-      remove();
-    } else {
-      setTimeout(remove, 1200);
-    }
+    setTimeout(remove, prefersReduced ? 0 : 900);
   };
-  window.addEventListener("load", () => {
-    setTimeout(hideSplash, prefersReduced ? 0 : 1000);
-  });
+  setTimeout(hideSplash, prefersReduced ? 0 : 600);
 };
 
 const setupDragAndDrop = () => {
@@ -223,6 +228,10 @@ const ui = {
   dashboardCalendarMonth: document.getElementById("dashboardCalendarMonth"),
   trainingCalendarView: document.getElementById("trainingCalendarView"),
   trainingCalendarMonth: document.getElementById("trainingCalendarMonth"),
+  trainingCalendarYear: document.getElementById("trainingCalendarYear"),
+  macroDatePicker: document.getElementById("macroDatePicker"),
+  macroPrevDay: document.getElementById("macroPrevDay"),
+  macroNextDay: document.getElementById("macroNextDay"),
   sessionList: document.getElementById("sessionList"),
   importWorkoutsButton: document.getElementById("importWorkoutsButton"),
   deleteTrainingDataButton: document.getElementById("deleteTrainingDataButton"),
@@ -272,6 +281,28 @@ const ui = {
   recoveryNotesDate: document.getElementById("recoveryNotesDate"),
   recoveryNotesText: document.getElementById("recoveryNotesText"),
   recoveryTimelineList: document.getElementById("recoveryTimelineList"),
+  greetingLabel: document.getElementById("greetingLabel"),
+  syncStatus: document.getElementById("syncStatus"),
+  landingButton: document.getElementById("landingButton"),
+  logoutButton: document.getElementById("logoutButton"),
+  profileForm: document.getElementById("profileForm"),
+  profileDisplayName: document.getElementById("profileDisplayName"),
+  profileEmail: document.getElementById("profileEmail"),
+  profileStatus: document.getElementById("profileStatus"),
+  accountOnboardingStatus: document.getElementById("accountOnboardingStatus"),
+  accountOnboardingSummary: document.getElementById("accountOnboardingSummary"),
+  resumeOnboardingButton: document.getElementById("resumeOnboardingButton"),
+  restartOnboardingButton: document.getElementById("restartOnboardingButton"),
+  passwordForm: document.getElementById("passwordForm"),
+  currentPassword: document.getElementById("currentPassword"),
+  newPassword: document.getElementById("newPassword"),
+  confirmPassword: document.getElementById("confirmPassword"),
+  passwordStatus: document.getElementById("passwordStatus"),
+  exportDataButton: document.getElementById("exportDataButton"),
+  accountDeleteTrainingDataButton: document.getElementById("accountDeleteTrainingDataButton"),
+  accountDataStatus: document.getElementById("accountDataStatus"),
+  mealSaveToFoods: document.getElementById("mealSaveToFoods"),
+
 };
 
 const calendarState = {
@@ -290,6 +321,96 @@ let editingSessionId = null;
 let selectedHabitDate = todayISO();
 let volumeRangeState = "7";
 let muscleRangeState = "7";
+let macroDate = todayISO();
+let currentUser = null;
+let accountOnboardingState = {
+  status: "pending",
+  currentStep: 0,
+  answers: {},
+  version: ONBOARDING_VERSION,
+};
+
+const setInlineFeedback = (element, message = "", tone = "") => {
+  if (!element) return;
+  element.textContent = message;
+  element.classList.toggle("success-text", tone === "success");
+  element.classList.toggle("error-text", tone === "error");
+};
+
+const setCurrentUser = (user) => {
+  currentUser = user || null;
+  const displayName = currentUser?.displayName || "Athlete";
+  if (ui.greetingLabel) {
+    ui.greetingLabel.textContent = `Hey, ${displayName}`;
+  }
+  if (ui.syncStatus) {
+    ui.syncStatus.textContent = currentUser ? "Account Synced" : "Signed Out";
+  }
+};
+
+const describeOnboardingStatus = (stateValue) => {
+  const status = stateValue?.status || currentUser?.onboardingStatus || "pending";
+  const step = Math.min(Math.max(Number(stateValue?.currentStep || 0), 0), ONBOARDING_STEPS.length - 1) + 1;
+  if (status === "completed") {
+    return {
+      label: "Complete",
+      summary: "Your setup is complete and can be updated anytime.",
+      complete: true,
+    };
+  }
+  if (status === "skipped") {
+    return {
+      label: "Skipped",
+      summary: `Resume whenever you're ready. Your last saved step is ${step} of ${ONBOARDING_STEPS.length}.`,
+      complete: false,
+    };
+  }
+  return {
+    label: "In Progress",
+    summary: `Your answers save to your account. Continue from step ${step} of ${ONBOARDING_STEPS.length}.`,
+    complete: false,
+  };
+};
+
+const renderAccount = async () => {
+  if (!currentUser) return;
+  try {
+    accountOnboardingState = await getOnboarding();
+    if (ui.profileDisplayName) ui.profileDisplayName.value = currentUser.displayName || "";
+    if (ui.profileEmail) ui.profileEmail.value = currentUser.email || "";
+    const onboardingStatus = describeOnboardingStatus(accountOnboardingState);
+    if (ui.accountOnboardingStatus) {
+      ui.accountOnboardingStatus.textContent = onboardingStatus.label;
+      ui.accountOnboardingStatus.classList.toggle("status-pill--complete", onboardingStatus.complete);
+    }
+    if (ui.accountOnboardingSummary) {
+      ui.accountOnboardingSummary.textContent = onboardingStatus.summary;
+    }
+    if (ui.resumeOnboardingButton) {
+      ui.resumeOnboardingButton.textContent =
+        accountOnboardingState.status === "completed" ? "Edit Onboarding" : "Resume Onboarding";
+    }
+  } catch (error) {
+    setInlineFeedback(ui.accountDataStatus, error.message || "Could not load account details.", "error");
+  }
+};
+
+const deleteTrainingDataForAccount = async (statusTarget, emptyMessageTarget = statusTarget) => {
+  if (state.workoutSets.length === 0 && state.legacySessions.length === 0) {
+    setInlineFeedback(emptyMessageTarget, "No training data to delete.");
+    updateTrainingDeleteControl();
+    return;
+  }
+  const confirmed = window.confirm("Delete all training data from this account?");
+  if (!confirmed) return;
+  const deleted = await deleteAllTrainingData();
+  const message = deleted > 0 ? `Deleted ${deleted} training records.` : "No training data to delete.";
+  setInlineFeedback(statusTarget, message, deleted > 0 ? "success" : "");
+  renderSessionsList();
+  await updateDashboard();
+  await renderCalendarView();
+  await renderAccount();
+};
 
 const DEFAULT_MUSCLE_GROUPS = [
   "Abs",
@@ -311,16 +432,33 @@ const DEFAULT_MUSCLE_GROUPS = [
   "Upper Back",
 ];
 
+const populateYearSelect = (selectEl, selectedYear) => {
+  if (!selectEl) return;
+  const currentYear = new Date().getFullYear();
+  selectEl.innerHTML = "";
+  for (let y = currentYear; y >= currentYear - 5; y -= 1) {
+    const option = document.createElement("option");
+    option.value = String(y);
+    option.textContent = String(y);
+    if (y === selectedYear) option.selected = true;
+    selectEl.appendChild(option);
+  }
+};
+
 const setDefaultDates = () => {
   const today = todayISO();
   [ui.sessionDate, ui.mealDate, ui.sleepDate].forEach((input) => {
     if (input) input.value = today;
   });
   const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
   calendarState.month = currentMonth;
   trainingCalendarState.month = currentMonth;
   if (ui.dashboardCalendarMonth) ui.dashboardCalendarMonth.value = String(currentMonth);
   if (ui.trainingCalendarMonth) ui.trainingCalendarMonth.value = String(currentMonth);
+  populateYearSelect(ui.trainingCalendarYear, currentYear);
+  if (ui.macroDatePicker) ui.macroDatePicker.value = today;
+  macroDate = today;
   if (ui.sleepRange) ui.sleepRange.value = "14";
   if (ui.sleepMetric) ui.sleepMetric.value = "hours";
   volumeRangeState = "7";
@@ -498,6 +636,12 @@ const updateCalendarMonth = (stateObj, monthValue) => {
   stateObj.anchorDate = new Date(year, month, 1);
 };
 
+const updateCalendarYear = (stateObj, yearValue) => {
+  const year = Number(yearValue);
+  if (Number.isNaN(year)) return;
+  stateObj.anchorDate = new Date(year, stateObj.anchorDate.getMonth(), 1);
+};
+
 const renderDashboardCalendar = async () => {
   const { weekDates } = renderCalendar(ui.calendarView, {
     view: calendarState.view,
@@ -540,6 +684,7 @@ const updateDashboard = async () => {
   await renderMuscleDistribution();
   renderDashboardSleepChart();
 };
+
 const renderCalendarView = async () => {
   await renderDashboardCalendar();
   renderTrainingCalendar();
@@ -855,8 +1000,8 @@ const renderMacroTargets = () => {
   ui.targetHydration.value = targets.hydration || "";
 };
 
-const renderMacroChart = async () => {
-  const progress = await computeMacroProgress(todayISO());
+const renderMacroChart = async (date = macroDate) => {
+  const progress = await computeMacroProgress(date);
   const rings = {
     Protein: progress.protein,
     Carbs: progress.carbs,
@@ -1144,23 +1289,90 @@ const bindEvents = () => {
 
   if (ui.deleteTrainingDataButton) {
     ui.deleteTrainingDataButton.addEventListener("click", async () => {
-      if (state.workoutSets.length === 0 && state.legacySessions.length === 0) {
-        if (ui.importStatus) ui.importStatus.textContent = "No training data to delete.";
-        updateTrainingDeleteControl();
-        return;
-      }
-      const confirmed = window.confirm("Delete all training data?");
-      if (!confirmed) return;
-      const deleted = await deleteAllTrainingData();
-      if (ui.importStatus) {
-        ui.importStatus.textContent =
-          deleted > 0 ? `Deleted ${deleted} training records.` : "No training data to delete.";
-      }
-      renderSessionsList();
-      await updateDashboard();
-      await renderCalendarView();
+      await deleteTrainingDataForAccount(ui.importStatus, ui.importStatus);
     });
   }
+
+  ui.landingButton?.addEventListener("click", () => {
+    window.location.href = "/";
+  });
+
+  ui.logoutButton?.addEventListener("click", async () => {
+    try {
+      await logout();
+    } catch (error) {
+      if (error?.status !== 401) {
+        console.error(error);
+      }
+    } finally {
+      window.location.replace("/login");
+    }
+  });
+
+  ui.profileForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setInlineFeedback(ui.profileStatus, "");
+    try {
+      const updatedUser = await updateProfile({
+        displayName: ui.profileDisplayName?.value.trim() || "",
+        email: ui.profileEmail?.value.trim() || "",
+      });
+      setCurrentUser(updatedUser);
+      await renderAccount();
+      setInlineFeedback(ui.profileStatus, "Profile updated.", "success");
+    } catch (error) {
+      setInlineFeedback(ui.profileStatus, error.message || "Could not save profile.", "error");
+    }
+  });
+
+  ui.passwordForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setInlineFeedback(ui.passwordStatus, "");
+    if ((ui.newPassword?.value || "") !== (ui.confirmPassword?.value || "")) {
+      setInlineFeedback(ui.passwordStatus, "New passwords do not match.", "error");
+      return;
+    }
+    try {
+      const result = await changePassword({
+        currentPassword: ui.currentPassword?.value || "",
+        newPassword: ui.newPassword?.value || "",
+      });
+      setCurrentUser(result.user);
+      ui.passwordForm?.reset();
+      setInlineFeedback(ui.passwordStatus, "Password updated.", "success");
+    } catch (error) {
+      setInlineFeedback(ui.passwordStatus, error.message || "Could not update password.", "error");
+    }
+  });
+
+  ui.exportDataButton?.addEventListener("click", () => {
+    window.open(getAccountExportUrl(), "_blank", "noopener");
+  });
+
+  ui.resumeOnboardingButton?.addEventListener("click", () => {
+    window.location.href = "/onboarding";
+  });
+
+  ui.restartOnboardingButton?.addEventListener("click", async () => {
+    const confirmed = window.confirm("Restart onboarding from step 1?");
+    if (!confirmed) return;
+    try {
+      accountOnboardingState = await updateOnboarding({
+        status: "pending",
+        currentStep: 0,
+        answers: {},
+        version: accountOnboardingState.version || ONBOARDING_VERSION,
+      });
+      if (currentUser) currentUser.onboardingStatus = "pending";
+      window.location.href = "/onboarding";
+    } catch (error) {
+      setInlineFeedback(ui.accountDataStatus, error.message || "Could not restart onboarding.", "error");
+    }
+  });
+
+  ui.accountDeleteTrainingDataButton?.addEventListener("click", async () => {
+    await deleteTrainingDataForAccount(ui.accountDataStatus, ui.accountDataStatus);
+  });
 
   document.querySelectorAll(".segment").forEach((segment) => {
     segment.addEventListener("click", async () => {
@@ -1191,10 +1403,45 @@ const bindEvents = () => {
       await renderDashboardCalendar();
     });
   }
+
   if (ui.trainingCalendarMonth) {
     ui.trainingCalendarMonth.addEventListener("change", (event) => {
       updateCalendarMonth(trainingCalendarState, event.target.value);
       renderTrainingCalendar();
+    });
+  }
+
+  if (ui.trainingCalendarYear) {
+    ui.trainingCalendarYear.addEventListener("change", (event) => {
+      updateCalendarYear(trainingCalendarState, event.target.value);
+      renderTrainingCalendar();
+    });
+  }
+
+  if (ui.macroDatePicker) {
+    ui.macroDatePicker.addEventListener("change", async (event) => {
+      macroDate = event.target.value;
+      await renderMacroChart();
+    });
+  }
+
+  if (ui.macroPrevDay) {
+    ui.macroPrevDay.addEventListener("click", async () => {
+      const d = new Date(macroDate + "T00:00:00");
+      d.setDate(d.getDate() - 1);
+      macroDate = d.toISOString().slice(0, 10);
+      if (ui.macroDatePicker) ui.macroDatePicker.value = macroDate;
+      await renderMacroChart();
+    });
+  }
+
+  if (ui.macroNextDay) {
+    ui.macroNextDay.addEventListener("click", async () => {
+      const d = new Date(macroDate + "T00:00:00");
+      d.setDate(d.getDate() + 1);
+      macroDate = d.toISOString().slice(0, 10);
+      if (ui.macroDatePicker) ui.macroDatePicker.value = macroDate;
+      await renderMacroChart();
     });
   }
 
@@ -1263,19 +1510,41 @@ const bindEvents = () => {
     await renderHydration();
   });
 
-  ui.mealForm.addEventListener("submit", async (event) => {
+   ui.mealForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const mealName = ui.mealName.value;
+    const calories = Number(ui.mealCalories.value || 0);
+    const protein = Number(ui.mealProtein.value || 0);
+    const carbs = Number(ui.mealCarbs.value || 0);
+    const fat = Number(ui.mealFat.value || 0);
+
     await saveMeal({
       date: ui.mealDate.value,
-      name: ui.mealName.value,
-      calories: Number(ui.mealCalories.value || 0),
-      protein: Number(ui.mealProtein.value || 0),
-      carbs: Number(ui.mealCarbs.value || 0),
-      fat: Number(ui.mealFat.value || 0),
+      name: mealName,
+      calories,
+      protein,
+      carbs,
+      fat,
       notes: ui.mealNotes.value,
     });
+
+    if (ui.mealSaveToFoods?.checked && mealName.trim()) {
+      await saveMeal({ ...{ id: undefined }, name: mealName, calories, protein, carbs, fat, notes: "" });
+      const existingFood = state.foods.find(
+        (f) => (f.name || "").toLowerCase() === mealName.trim().toLowerCase()
+      );
+      if (!existingFood) {
+        await import("./storage.js").then(({ put: storagePut }) =>
+          storagePut(STORES.foods, { name: mealName.trim(), calories, protein, carbs, fat })
+        );
+        await loadAll();
+      }
+      ui.mealSaveToFoods.checked = false;
+    }
+
     renderMeals();
     await renderMacroChart();
+    renderFoodSearch();
     ui.mealName.value = "";
     ui.mealCalories.value = "";
     ui.mealProtein.value = "";
@@ -1313,7 +1582,7 @@ const bindEvents = () => {
 const registerServiceWorker = () => {
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js");
+      navigator.serviceWorker.register("/sw.js");
     });
   }
 };
@@ -1337,7 +1606,15 @@ const setupInstallPrompt = () => {
 };
 
 const init = async () => {
-  setupSplash();
+  setUnauthorizedHandler(() => {
+    window.location.replace("/login");
+  });
+  const authenticatedUser = await getCurrentUser();
+  if (!authenticatedUser) {
+    window.location.replace("/login");
+    return;
+  }
+  setCurrentUser(authenticatedUser);
   setupDragAndDrop();
   await initState();
   setDefaultDates();
@@ -1353,6 +1630,7 @@ const init = async () => {
   renderSleepChart();
   renderRecoveryNotes();
   await renderRecoveryTimeline();
+  await renderAccount();
   resetSessionForm();
 
   bindEvents();
@@ -1369,6 +1647,9 @@ const init = async () => {
         renderRecoveryNotes();
         await renderRecoveryTimeline();
       }
+      if (route === "account") {
+        await renderAccount();
+      }
     });
   });
   registerServiceWorker();
@@ -1382,4 +1663,10 @@ const init = async () => {
   });
 };
 
-init();
+setupSplash();
+init().catch((error) => {
+  console.error(error);
+  if (ui.syncStatus) {
+    ui.syncStatus.textContent = "Load failed";
+  }
+});
