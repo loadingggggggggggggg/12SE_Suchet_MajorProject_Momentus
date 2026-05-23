@@ -393,6 +393,23 @@ const saveMeal = async (entry) => {
   return item;
 };
 
+const saveFood = async (entry) => {
+  const name = String(entry?.name || "").trim();
+  if (!name) return null;
+  const existing = state.foods.find((food) => (food.name || "").trim().toLowerCase() === name.toLowerCase());
+  const item = {
+    id: existing?.id || entry.id || makeId(),
+    name,
+    calories: Number.isFinite(Number(entry?.calories)) ? Number(entry.calories) : 0,
+    protein: Number.isFinite(Number(entry?.protein)) ? Number(entry.protein) : 0,
+    carbs: Number.isFinite(Number(entry?.carbs)) ? Number(entry.carbs) : 0,
+    fat: Number.isFinite(Number(entry?.fat)) ? Number(entry.fat) : 0,
+  };
+  await put(STORES.foods, item);
+  await loadAll();
+  return item;
+};
+
 const deleteMeal = async (id) => {
   await remove(STORES.meals, id);
   await loadAll();
@@ -473,6 +490,7 @@ export {
   saveSleepEntry,
   saveRecoveryNote,
   saveMeal,
+  saveFood,
   deleteMeal,
   getHabitForDate,
   getRecoveryNoteForDate,

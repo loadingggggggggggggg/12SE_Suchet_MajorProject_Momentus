@@ -14,6 +14,7 @@ import {
   addHydration,
   saveSleepEntry,
   saveMeal,
+  saveFood,
   deleteMeal,
   getHabitForDate,
   getMacroTargets,
@@ -957,9 +958,7 @@ const renderFoodSearch = (query) => {
   if (!ui.foodSearchResults) return;
   const q = (query ?? ui.foodSearchInput?.value ?? "").trim().toLowerCase();
   const foods = state.foods || [];
-  const results = q
-    ? foods.filter((food) => (food.name || "").toLowerCase().includes(q))
-    : foods.slice(0, 8);
+  const results = q ? foods.filter((food) => (food.name || "").toLowerCase().includes(q)) : foods;
 
   ui.foodSearchResults.innerHTML = "";
   if (results.length === 0) {
@@ -1103,6 +1102,19 @@ const renderRecoveryTimeline = async () => {
 const parseLocalISO = (iso) => {
   const [year, month, day] = iso.split("-").map(Number);
   return new Date(year, month - 1, day);
+};
+
+const formatLocalISO = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const shiftLocalISO = (iso, deltaDays) => {
+  const next = parseLocalISO(iso);
+  next.setDate(next.getDate() + deltaDays);
+  return formatLocalISO(next);
 };
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -1427,9 +1439,7 @@ const bindEvents = () => {
 
   if (ui.macroPrevDay) {
     ui.macroPrevDay.addEventListener("click", async () => {
-      const d = new Date(macroDate + "T00:00:00");
-      d.setDate(d.getDate() - 1);
-      macroDate = d.toISOString().slice(0, 10);
+      macroDate = shiftLocalISO(macroDate, -1);
       if (ui.macroDatePicker) ui.macroDatePicker.value = macroDate;
       await renderMacroChart();
     });
@@ -1437,9 +1447,7 @@ const bindEvents = () => {
 
   if (ui.macroNextDay) {
     ui.macroNextDay.addEventListener("click", async () => {
-      const d = new Date(macroDate + "T00:00:00");
-      d.setDate(d.getDate() + 1);
-      macroDate = d.toISOString().slice(0, 10);
+      macroDate = shiftLocalISO(macroDate, 1);
       if (ui.macroDatePicker) ui.macroDatePicker.value = macroDate;
       await renderMacroChart();
     });
@@ -1529,16 +1537,7 @@ const bindEvents = () => {
     });
 
     if (ui.mealSaveToFoods?.checked && mealName.trim()) {
-      await saveMeal({ ...{ id: undefined }, name: mealName, calories, protein, carbs, fat, notes: "" });
-      const existingFood = state.foods.find(
-        (f) => (f.name || "").toLowerCase() === mealName.trim().toLowerCase()
-      );
-      if (!existingFood) {
-        await import("./storage.js").then(({ put: storagePut }) =>
-          storagePut(STORES.foods, { name: mealName.trim(), calories, protein, carbs, fat })
-        );
-        await loadAll();
-      }
+      await saveFood({ name: mealName, calories, protein, carbs, fat });
       ui.mealSaveToFoods.checked = false;
     }
 
