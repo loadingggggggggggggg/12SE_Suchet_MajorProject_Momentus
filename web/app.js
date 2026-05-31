@@ -35,11 +35,12 @@ import {
   getAccountExportUrl,
   getCurrentUser,
   getOnboarding,
+  analyseWithAi,
   logout,
   setUnauthorizedHandler,
   updateOnboarding,
   updateProfile,
-} from "./storage.js";
+} from "./storage.js?v=ai-coach-2";
 import { ONBOARDING_STEPS, ONBOARDING_VERSION } from "./onboarding-config.js";
 
 const setupSplash = () => {
@@ -303,6 +304,13 @@ const ui = {
   accountDeleteTrainingDataButton: document.getElementById("accountDeleteTrainingDataButton"),
   accountDataStatus: document.getElementById("accountDataStatus"),
   mealSaveToFoods: document.getElementById("mealSaveToFoods"),
+  aiCoachForm: document.getElementById("aiCoachForm"),
+  aiMode: document.getElementById("aiMode"),
+  aiNotes: document.getElementById("aiNotes"),
+  aiAnalyseButton: document.getElementById("aiAnalyseButton"),
+  aiStatus: document.getElementById("aiStatus"),
+  aiResult: document.getElementById("aiResult"),
+  aiCards: document.querySelectorAll("[data-ai-card]"),
 
 };
 
@@ -337,6 +345,14 @@ const setInlineFeedback = (element, message = "", tone = "") => {
   element.classList.toggle("success-text", tone === "success");
   element.classList.toggle("error-text", tone === "error");
 };
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 const setCurrentUser = (user) => {
   currentUser = user || null;
@@ -1099,6 +1115,239 @@ const renderRecoveryTimeline = async () => {
   });
 };
 
+const normaliseExerciseName = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const buildExerciseProgress = () => {
+  const byExercise = new Map();
+  state.sessions.forEach((session) => {
+    const date = normalizeSessionDate(session) || session.date;
+    if (!date) return;
+    (session.exercises || []).forEach((exercise) => {
+      const key = normaliseExerciseName(exercise.name);
+      if (!key) return;
+      if (!byExercise.has(key)) {
+        byExercise.set(key, {
+          exercise: exercise.name || "Exercise",
+          muscle: exercise.muscle || "",
+          entries: [],
+        });
+      }
+      const sets = exercise.sets || [];
+      const bestWeight = sets.reduce((max, set) => Math.max(max, Number(set.weight || 0)), 0);
+      const bestReps = sets.reduce((max, set) => Math.max(max, Number(set.reps || 0)), 0);
+      const volume = sets.reduce(
+        (sum, set) => sum + Number(set.weight || 0) * Number(set.reps || 0),
+        0
+      );
+      byExercise.get(key).entries.push({
+        date,
+        bestWeight,
+        bestReps,
+        sets: sets.length,
+        volume,
+      });
+    });
+  });
+
+  return Array.from(byExercise.values()).map((item) => ({
+    ...item,
+    entries: item.entries.sort((a, b) => a.date.localeCompare(b.date)),
+  }));
+};
+
+const detectPlateauCandidates = () => {
+  const cutoff = parseLocalISO(todayISO());
+  cutoff.setDate(cutoff.getDate() - 60);
+  return buildExerciseProgress()
+    .map((item) => {
+      const recent = item.entries.filter((entry) => parseLocalISO(entry.date) >= cutoff);
+      if (recent.length < 2) return null;
+      const first = recent[0];
+      const last = recent[recent.length - 1];
+      const maxWeight = recent.reduce((max, entry) => Math.max(max, Number(entry.bestWeight || 0)), 0);
+      const maxReps = recent.reduce((max, entry) => Math.max(max, Number(entry.bestReps || 0)), 0);
+      const improvedWeight = Number(last.bestWeight || 0) > Number(first.bestWeight || 0);
+      const improvedReps = Number(last.bestReps || 0) > Number(first.bestReps || 0);
+      if (improvedWeight || improvedReps) return null;
+      return {
+        exercise: item.exercise,
+        muscle: item.muscle,
+        sessionsTracked: recent.length,
+        since: first.date,
+        latest: last.date,
+        firstBestWeight: Number(first.bestWeight || 0),
+        latestBestWeight: Number(last.bestWeight || 0),
+        maxWeight,
+        firstBestReps: Number(first.bestReps || 0),
+        latestBestReps: Number(last.bestReps || 0),
+        maxReps,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.sessionsTracked - a.sessionsTracked)
+    .slice(0, 8);
+};
+
+const buildExerciseHighlights = () =>
+  buildExerciseProgress()
+    .map((item) => {
+      const latest = item.entries[item.entries.length - 1];
+      if (!latest) return null;
+      const totalSets = item.entries.reduce((sum, entry) => sum + Number(entry.sets || 0), 0);
+      const maxWeight = item.entries.reduce((max, entry) => Math.max(max, Number(entry.bestWeight || 0)), 0);
+      const maxReps = item.entries.reduce((max, entry) => Math.max(max, Number(entry.bestReps || 0)), 0);
+      return {
+        exercise: item.exercise,
+        muscle: item.muscle,
+        sessionsTracked: item.entries.length,
+        totalSets,
+        latestDate: latest.date,
+        latestBestWeight: Number(latest.bestWeight || 0),
+        latestBestReps: Number(latest.bestReps || 0),
+        maxWeight,
+        maxReps,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.sessionsTracked - a.sessionsTracked)
+    .slice(0, 12);
+
+const buildAiContext = () => {
+  const recentSessions = state.sessions
+    .slice()
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, 12);
+  const recentMeals = state.meals
+    .slice()
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, 20);
+  const recentSleep = state.sleep
+    .slice()
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, 14);
+  const recentRecoveryNotes = state.recoveryNotes
+    .slice()
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, 14);
+
+  return {
+    today: todayISO(),
+    macroTargets: getMacroTargets(),
+    exerciseHighlights: buildExerciseHighlights(),
+    plateauCandidates: detectPlateauCandidates(),
+    recentSessions,
+    recentMeals,
+    recentSleep,
+    recentRecoveryNotes,
+  };
+};
+
+const renderAiResult = (analysis, target = ui.aiResult) => {
+  if (!target) return;
+  const result = analysis?.result || {};
+  const recommendations = Array.isArray(result.recommendations) ? result.recommendations : [];
+  const nutritionFlags = Array.isArray(result.nutrition_flags) ? result.nutrition_flags : [];
+  const exerciseHighlights = Array.isArray(result.exercise_highlights) ? result.exercise_highlights : [];
+  const plateaus = Array.isArray(result.plateaus) ? result.plateaus : [];
+  const trainingModifications = Array.isArray(result.training_modifications) ? result.training_modifications : [];
+  const confidence = Math.round(Number(result.confidence || 0) * 100);
+  target.classList.remove("empty");
+  target.innerHTML = `
+    <div class="ai-summary">${escapeHtml(result.summary || "No summary returned.")}</div>
+    <div class="ai-grid">
+      <div><span class="muted">Type</span><strong>${escapeHtml(result.detected_type || "unknown")}</strong></div>
+      <div><span class="muted">Load</span><strong>${escapeHtml(result.training_load || "not enough data")}</strong></div>
+      <div><span class="muted">Recovery</span><strong>${escapeHtml(result.recovery_risk || "unknown")}</strong></div>
+      <div><span class="muted">Confidence</span><strong>${confidence}%</strong></div>
+    </div>
+    <div class="ai-columns">
+      <div>
+        <div class="muted">Exercise highlights</div>
+        ${
+          exerciseHighlights.length
+            ? `<ul>${exerciseHighlights.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+            : "<p class=\"muted\">No exercise highlights returned.</p>"
+        }
+      </div>
+      <div>
+        <div class="muted">Plateaus</div>
+        ${
+          plateaus.length
+            ? `<ul>${plateaus.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+            : "<p class=\"muted\">No clear plateaus detected.</p>"
+        }
+      </div>
+      <div>
+        <div class="muted">Training modifications</div>
+        ${
+          trainingModifications.length
+            ? `<ul>${trainingModifications.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+            : "<p class=\"muted\">No training modifications returned.</p>"
+        }
+      </div>
+      <div>
+        <div class="muted">Nutrition flags</div>
+        ${
+          nutritionFlags.length
+            ? `<ul>${nutritionFlags.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+            : "<p class=\"muted\">No clear nutrition flags.</p>"
+        }
+      </div>
+      <div>
+        <div class="muted">Recommendations</div>
+        ${
+          recommendations.length
+            ? `<ul>${recommendations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+            : "<p class=\"muted\">No recommendations returned.</p>"
+        }
+      </div>
+    </div>
+    <div class="muted">${escapeHtml(analysis?.disclaimer || "")}</div>
+  `;
+};
+
+const handleAiAnalyse = async (event, card = null) => {
+  event.preventDefault();
+  const root = card || event.currentTarget?.closest("[data-ai-card]");
+  const button = root?.querySelector("[data-ai-button]") || ui.aiAnalyseButton;
+  const status = root?.querySelector("[data-ai-status]") || ui.aiStatus;
+  const resultTarget = root?.querySelector("[data-ai-result]") || ui.aiResult;
+  const notes = root?.querySelector("[data-ai-notes]")?.value || ui.aiNotes?.value || "";
+  const mode =
+    root?.querySelector("[data-ai-mode-select]")?.value ||
+    root?.dataset.aiMode ||
+    ui.aiMode?.value ||
+    "weekly_summary";
+  if (!button) return;
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.classList.add("is-loading");
+  setInlineFeedback(status, "Analysing your recent logs...", "");
+  try {
+    const analysis = await analyseWithAi({
+      mode,
+      text: notes,
+      context: buildAiContext(),
+    });
+    renderAiResult(analysis, resultTarget);
+    setInlineFeedback(status, "Analysis complete.", "success");
+  } catch (error) {
+    setInlineFeedback(
+      status,
+      error.message || "AI analysis failed. Check the server setup and try again.",
+      "error"
+    );
+  } finally {
+    button.disabled = false;
+    button.classList.remove("is-loading");
+    button.textContent = originalLabel;
+  }
+};
+
 const parseLocalISO = (iso) => {
   const [year, month, day] = iso.split("-").map(Number);
   return new Date(year, month - 1, day);
@@ -1494,6 +1743,9 @@ const bindEvents = () => {
       await renderRecoveryTimeline();
     });
   }
+  document.querySelectorAll("[data-ai-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => handleAiAnalyse(event, form.closest("[data-ai-card]")));
+  });
   ui.addExerciseButton.addEventListener("click", () => {
     ui.exerciseBuilder.appendChild(createExerciseBlock());
   });

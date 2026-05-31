@@ -23,6 +23,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from backend.gemini_service import (
+    ALLOWED_MODES,
+    GeminiConfigurationError,
+    GeminiServiceError,
+    analyse_with_gemini,
+)
 from backend.services import AnalyticsService, StoreRepository
 
 
@@ -96,6 +102,18 @@ class OnboardingPayload(BaseModel):
 
 class WeekSummaryPayload(BaseModel):
     weekDates: list[str]
+
+
+class AiImagePayload(BaseModel):
+    mimeType: str
+    data: str = Field(max_length=8_000_000)
+
+
+class AiAnalysisPayload(BaseModel):
+    mode: str
+    text: str = Field(default="", max_length=12000)
+    context: dict[str, Any] = Field(default_factory=dict)
+    images: list[AiImagePayload] = Field(default_factory=list)
 
 
 def utc_now() -> datetime:
@@ -1025,6 +1043,29 @@ def analytics_hydration_total(date: str, current_user: dict[str, Any] = Depends(
 def analytics_recovery_timeline(limit: int = 30, current_user: dict[str, Any] = Depends(require_authenticated_user)) -> dict[str, Any]:
     entries = get_analytics_for_user(current_user["id"]).build_recovery_timeline(limit)
     return {"entries": entries}
+
+
+@app.post("/api/ai/analyse")
+def ai_analyse(
+    payload: AiAnalysisPayload,
+    current_user: dict[str, Any] = Depends(require_authenticated_user),
+    _: None = Depends(require_csrf),
+) -> dict[str, Any]:
+    mode = (payload.mode or "").strip()
+    if mode not in ALLOWED_MODES:
+        raise HTTPException(status_code=422, detail="Unknown AI analysis mode")
+    try:
+        images = [image.model_dump() for image in payload.images[:4]]
+        result = analyse_with_gemini(mode, payload.text, payload.context, images)
+    except GeminiConfigurationError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except GeminiServiceError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    return {
+        "mode": mode,
+        "result": result,
+        "disclaimer": "Momentus AI provides general training, nutrition, and recovery guidance only.",
+    }
 
 
 @app.get("/api/{store}")

@@ -180,6 +180,12 @@ const getHydrationTotal = async (date) =>
 const getRecoveryTimeline = async (limit = 30) =>
   requestJson(`${API_BASE}/analytics/recovery-timeline?limit=${encodeURIComponent(limit)}`);
 
+const analyseWithAi = async ({ mode, text, context, images }) =>
+  requestJson(`${API_BASE}/ai/analyse`, {
+    method: "POST",
+    body: { mode, text, context, images: images || [] },
+  });
+
 const deleteTrainingData = async () =>
   requestJson(`${API_BASE}/training-data`, {
     method: "DELETE",
@@ -233,6 +239,7 @@ export {
   getMacroProgress,
   getHydrationTotal,
   getRecoveryTimeline,
+  analyseWithAi,
   deleteTrainingData,
   put,
   remove,

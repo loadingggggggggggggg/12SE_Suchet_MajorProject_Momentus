@@ -285,7 +285,8 @@ body {
   grid-template-areas:
     "sleep trend trend"
     "notes trend trend"
-    "notes timeline timeline";
+    "notes timeline timeline"
+    "ai ai ai";
   align-items: start;
 }
 
@@ -359,6 +360,18 @@ body {
 
 .session-form-card {
   grid-area: form;
+}
+
+.training-ai-card {
+  grid-column: 1 / -1;
+}
+
+.nutrition-ai-card {
+  grid-column: 1 / -1;
+}
+
+.recovery-ai-card {
+  grid-area: ai;
 }
 
 .card {
@@ -804,6 +817,113 @@ button:disabled {
   font-weight: 600;
 }
 
+.ai-coach-card {
+  position: relative;
+  border-color: rgba(214, 90, 49, 0.45);
+  box-shadow:
+    0 18px 35px rgba(20, 20, 20, 0.12),
+    0 0 0 1px rgba(214, 90, 49, 0.22),
+    0 0 28px rgba(214, 90, 49, 0.16);
+}
+
+.ai-coach-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(214, 90, 49, 0.32), rgba(53, 92, 155, 0.22), transparent 58%);
+  opacity: 0.45;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  padding: 1px;
+}
+
+.ai-coach-card .card-header h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(214, 90, 49, 0.14);
+  color: var(--accent);
+  border: 1px solid rgba(214, 90, 49, 0.34);
+  font-size: 10px;
+  font-weight: 800;
+  box-shadow: 0 0 14px rgba(214, 90, 49, 0.2);
+}
+
+.ai-coach-card textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.ai-status {
+  min-height: 18px;
+}
+
+.ai-result {
+  display: grid;
+  gap: 12px;
+  background: #f7f4f0;
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 13px;
+}
+
+.ai-result.empty {
+  place-items: center;
+  min-height: 86px;
+}
+
+.ai-summary {
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.ai-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ai-grid div {
+  display: grid;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.ai-grid strong {
+  font-size: 12px;
+}
+
+.ai-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ai-columns ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.ai-columns li {
+  margin-bottom: 6px;
+}
+
 .list {
   display: grid;
   gap: 10px;
@@ -986,7 +1106,8 @@ canvas {
     grid-template-areas:
       "sleep trend"
       "notes trend"
-      "notes timeline";
+      "notes timeline"
+      "ai ai";
   }
 }
 
@@ -1020,6 +1141,10 @@ canvas {
     grid-column: span 1;
   }
   .nutrition-grid {
+    grid-template-columns: 1fr;
+  }
+  .ai-grid,
+  .ai-columns {
     grid-template-columns: 1fr;
   }
   #macroChartCard,

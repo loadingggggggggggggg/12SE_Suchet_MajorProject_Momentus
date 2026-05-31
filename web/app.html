@@ -188,6 +188,42 @@
               </div>
             </article>
 
+            <article class="card span-2 ai-coach-card" id="aiCoachCard" data-ai-card="dashboard" data-ai-mode="weekly_summary">
+              <div class="card-header">
+                <h3><span class="ai-badge" aria-hidden="true">AI</span>AI Coach</h3>
+                <span class="muted">Gemini analysis</span>
+              </div>
+              <form class="form ai-coach-form" id="aiCoachForm" data-ai-form="dashboard">
+                <div class="form-row">
+                  <label>
+                    <span>Mode</span>
+                    <select id="aiMode" data-ai-mode-select>
+                      <option value="extract_workout">Extract workout</option>
+                      <option value="analyse_training">Analyse training</option>
+                      <option value="analyse_recovery">Analyse recovery</option>
+                      <option value="analyse_nutrition">Analyse nutrition</option>
+                      <option value="weekly_summary">Weekly summary</option>
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  <span>Notes</span>
+                  <textarea id="aiNotes" data-ai-notes rows="5" placeholder="Paste workout notes, meals, recovery reflections, or ask for a weekly summary..."></textarea>
+                </label>
+                <label>
+                  <span>Image input</span>
+                  <input type="file" data-ai-images accept="image/*" multiple />
+                </label>
+                <div class="form-actions">
+                  <button class="primary-button" id="aiAnalyseButton" data-ai-button type="submit">Analyse</button>
+                </div>
+                <div class="muted ai-status" id="aiStatus" data-ai-status>AI results use your recent Momentus logs plus any notes you paste here.</div>
+              </form>
+              <div class="ai-result empty" id="aiResult" data-ai-result>
+                <div class="muted">Run an analysis to see structured coaching feedback.</div>
+              </div>
+            </article>
+
             <article class="card span-2">
               <div class="card-header">
                 <h3>Progress (Weight / Reps)</h3>
@@ -310,6 +346,30 @@
                   <button class="ghost-button" id="resetSessionButton" type="button">Reset</button>
                 </div>
               </form>
+            </article>
+
+            <article class="card span-2 ai-coach-card training-ai-card" data-ai-card="training" data-ai-mode="analyse_training">
+              <div class="card-header">
+                <h3><span class="ai-badge" aria-hidden="true">AI</span>Training AI</h3>
+                <span class="muted">Plateaus + exercise focus</span>
+              </div>
+              <form class="form ai-coach-form" data-ai-form="training">
+                <label>
+                  <span>Training notes</span>
+                  <textarea data-ai-notes rows="4" placeholder="Ask about a lift, paste session notes, or leave blank for an automatic training analysis..."></textarea>
+                </label>
+                <label>
+                  <span>Workout image</span>
+                  <input type="file" data-ai-images accept="image/*" multiple />
+                </label>
+                <div class="form-actions">
+                  <button class="primary-button" data-ai-button type="submit">Analyse Training</button>
+                </div>
+                <div class="muted ai-status" data-ai-status>Checks recent sessions, exercise highlights, and 60-day plateau candidates.</div>
+              </form>
+              <div class="ai-result empty" data-ai-result>
+                <div class="muted">Run training analysis to see exercise-specific recommendations.</div>
+              </div>
             </article>
           </div>
         </section>
@@ -448,6 +508,30 @@
               </form>
               <div class="list" id="mealList"></div>
             </article>
+
+            <article class="card span-2 ai-coach-card nutrition-ai-card" data-ai-card="nutrition" data-ai-mode="analyse_nutrition">
+              <div class="card-header">
+                <h3><span class="ai-badge" aria-hidden="true">AI</span>Nutrition AI</h3>
+                <span class="muted">Fuel + macro trends</span>
+              </div>
+              <form class="form ai-coach-form" data-ai-form="nutrition">
+                <label>
+                  <span>Nutrition notes</span>
+                  <textarea data-ai-notes rows="4" placeholder="Upload a food photo, then write what you ate and roughly how much. If unsure, ask the AI to estimate and tell you what portion info it needs..."></textarea>
+                </label>
+                <label>
+                  <span>Food image</span>
+                  <input type="file" data-ai-images accept="image/*" multiple />
+                </label>
+                <div class="form-actions">
+                  <button class="primary-button" data-ai-button type="submit">Analyse Food + Nutrition</button>
+                </div>
+                <div class="muted ai-status" data-ai-status>Uses food photos, meals, hydration, macro targets, and recent training context.</div>
+              </form>
+              <div class="ai-result empty" data-ai-result>
+                <div class="muted">Run nutrition analysis to see meal and recovery support suggestions.</div>
+              </div>
+            </article>
           </div>
         </section>
 
@@ -533,6 +617,26 @@
                 </div>
               </form>
             </article>
+
+            <article class="card span-2 ai-coach-card recovery-ai-card" data-ai-card="recovery" data-ai-mode="analyse_recovery">
+              <div class="card-header">
+                <h3><span class="ai-badge" aria-hidden="true">AI</span>Recovery AI</h3>
+                <span class="muted">Sleep + fatigue signals</span>
+              </div>
+              <form class="form ai-coach-form" data-ai-form="recovery">
+                <label>
+                  <span>Recovery notes</span>
+                  <textarea data-ai-notes rows="4" placeholder="Paste soreness, stress, sleep, pain-free range, or leave blank for recovery analysis..."></textarea>
+                </label>
+                <div class="form-actions">
+                  <button class="primary-button" data-ai-button type="submit">Analyse Recovery</button>
+                </div>
+                <div class="muted ai-status" data-ai-status>Uses sleep, recovery notes, and recent training load.</div>
+              </form>
+              <div class="ai-result empty" data-ai-result>
+                <div class="muted">Run recovery analysis to see readiness and adjustment suggestions.</div>
+              </div>
+            </article>
           </div>
         </section>
 
@@ -617,6 +721,6 @@
       </main>
     </div>
 
-    <script type="module" src="/static/app.js"></script>
+    <script type="module" src="/static/app.js?v=ai-coach-2"></script>
   </body>
 </html>
