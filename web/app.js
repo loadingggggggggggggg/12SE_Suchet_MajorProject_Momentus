@@ -40,7 +40,7 @@ import {
   setUnauthorizedHandler,
   updateOnboarding,
   updateProfile,
-} from "./storage.js?v=ai-coach-2";
+} from "./storage.js?v=ai-coach-4";
 import { ONBOARDING_STEPS, ONBOARDING_VERSION } from "./onboarding-config.js";
 
 const setupSplash = () => {
@@ -353,6 +353,29 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+
+const readAiImages = async (input) => {
+  const files = Array.from(input?.files || []).slice(0, 4);
+  const maxBytes = 4 * 1024 * 1024;
+  const images = await Promise.all(
+    files
+      .filter((file) => file.type.startsWith("image/") && file.size <= maxBytes)
+      .map(
+        (file) =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.addEventListener("load", () => {
+              const dataUrl = String(reader.result || "");
+              const [, data = ""] = dataUrl.split(",", 2);
+              resolve({ mimeType: file.type, data });
+            });
+            reader.addEventListener("error", () => reject(reader.error));
+            reader.readAsDataURL(file);
+          })
+      )
+  );
+  return images;
+};
 
 const setCurrentUser = (user) => {
   currentUser = user || null;
@@ -790,7 +813,7 @@ const createSetRow = () => {
   row.className = "set-row";
   row.innerHTML = `
     <input type="text" placeholder="Set name" />
-    <input type="number" placeholder="Reps" min="0" />
+    <input type="number" placeholder="Reps" min="0" step="0.1" />
     <input type="number" placeholder="Weight" min="0" step="0.1" />
     <button type="button" class="ghost-button">Remove</button>
   `;
@@ -921,11 +944,12 @@ const handleSessionSubmit = async (event) => {
 
 const renderMeals = () => {
   ui.mealList.innerHTML = "";
-  if (state.meals.length === 0) {
-    ui.mealList.innerHTML = "<div class=\"muted\">No meals logged yet.</div>";
+  const mealsForDate = state.meals.filter((meal) => meal.date === macroDate);
+  if (mealsForDate.length === 0) {
+    ui.mealList.innerHTML = "<div class=\"muted\">No meals logged for this day.</div>";
     return;
   }
-  state.meals.forEach((meal) => {
+  mealsForDate.forEach((meal) => {
     const item = document.createElement("div");
     item.className = "list-item";
     item.innerHTML = `
@@ -1246,6 +1270,62 @@ const buildAiContext = () => {
   };
 };
 
+const numberOrBlank = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? String(Math.round(number * 100) / 100) : "";
+};
+
+const applyMealDraftToForm = (draft) => {
+  if (!draft) return;
+  if (ui.mealDate) ui.mealDate.value = draft.date || todayISO();
+  if (ui.mealName) ui.mealName.value = draft.name || "";
+  if (ui.mealCalories) ui.mealCalories.value = numberOrBlank(draft.calories);
+  if (ui.mealProtein) ui.mealProtein.value = numberOrBlank(draft.protein);
+  if (ui.mealCarbs) ui.mealCarbs.value = numberOrBlank(draft.carbs);
+  if (ui.mealFat) ui.mealFat.value = numberOrBlank(draft.fat);
+  if (ui.mealNotes) {
+    const missing = Array.isArray(draft.needs_confirmation) && draft.needs_confirmation.length
+      ? `\nConfirm: ${draft.needs_confirmation.join(", ")}`
+      : "";
+    ui.mealNotes.value = `${draft.notes || "Estimated by AI from nutrition input."}${missing}`.trim();
+  }
+  document.querySelector("[data-route=\"nutrition\"]")?.click();
+  ui.mealForm?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+const applyWorkoutDraftToForm = (draft) => {
+  if (!draft) return;
+  resetSessionForm();
+  if (ui.sessionDate) ui.sessionDate.value = draft.date || todayISO();
+  if (ui.sessionTitle) ui.sessionTitle.value = draft.title || "AI extracted workout";
+  if (ui.sessionNotes) ui.sessionNotes.value = draft.notes || "Extracted by AI from workout input.";
+  if (ui.exerciseBuilder) {
+    ui.exerciseBuilder.innerHTML = "";
+    const exercises = Array.isArray(draft.exercises) && draft.exercises.length
+      ? draft.exercises
+      : [{ name: "", muscle: "", sets: [{}] }];
+    exercises.forEach((exercise) => {
+      const block = createExerciseBlock(exercise.muscle || "");
+      const nameInput = block.querySelector(".exercise-name");
+      if (nameInput) nameInput.value = exercise.name || "";
+      const setList = block.querySelector(".set-list");
+      setList.innerHTML = "";
+      const sets = Array.isArray(exercise.sets) && exercise.sets.length ? exercise.sets : [{}];
+      sets.forEach((set, index) => {
+        const row = createSetRow();
+        const inputs = row.querySelectorAll("input");
+        inputs[0].value = set.name || `Set ${index + 1}`;
+        inputs[1].value = numberOrBlank(set.reps);
+        inputs[2].value = numberOrBlank(set.weight);
+        setList.appendChild(row);
+      });
+      ui.exerciseBuilder.appendChild(block);
+    });
+  }
+  document.querySelector("[data-route=\"training\"]")?.click();
+  ui.sessionForm?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
 const renderAiResult = (analysis, target = ui.aiResult) => {
   if (!target) return;
   const result = analysis?.result || {};
@@ -1254,60 +1334,108 @@ const renderAiResult = (analysis, target = ui.aiResult) => {
   const exerciseHighlights = Array.isArray(result.exercise_highlights) ? result.exercise_highlights : [];
   const plateaus = Array.isArray(result.plateaus) ? result.plateaus : [];
   const trainingModifications = Array.isArray(result.training_modifications) ? result.training_modifications : [];
+  const mealDraft = result.meal_draft && typeof result.meal_draft === "object" ? result.meal_draft : null;
+  const workoutDraft = result.workout_draft && typeof result.workout_draft === "object" ? result.workout_draft : null;
   const confidence = Math.round(Number(result.confidence || 0) * 100);
-  target.classList.remove("empty");
-  target.innerHTML = `
-    <div class="ai-summary">${escapeHtml(result.summary || "No summary returned.")}</div>
-    <div class="ai-grid">
+  const resultMode = target.closest("[data-ai-card]")?.dataset.aiMode || "weekly_summary";
+  const listSection = (title, items, emptyText) => `
+    <div>
+      <div class="muted">${title}</div>
+      ${
+        items.length
+          ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+          : `<p class="muted">${emptyText}</p>`
+      }
+    </div>
+  `;
+  const columnsHtml = (() => {
+    if (resultMode === "analyse_training" || resultMode === "extract_workout") {
+      return [
+        listSection("Exercise highlights", exerciseHighlights, "No exercise highlights returned."),
+        listSection("Plateaus", plateaus, "No clear plateaus detected."),
+        listSection("Training modifications", trainingModifications, "No training modifications returned."),
+        listSection("Recommendations", recommendations, "No recommendations returned."),
+      ].join("");
+    }
+    if (resultMode === "analyse_nutrition") {
+      return [
+        listSection("Nutrition flags", nutritionFlags, "No clear nutrition flags."),
+        listSection("Recommendations", recommendations, "No recommendations returned."),
+      ].join("");
+    }
+    if (resultMode === "analyse_recovery") {
+      return [
+        listSection("Recovery signals", recommendations, "No recovery recommendations returned."),
+      ].join("");
+    }
+    return [
+      listSection("Exercise highlights", exerciseHighlights, "No exercise highlights returned."),
+      listSection("Plateaus", plateaus, "No clear plateaus detected."),
+      listSection("Nutrition flags", nutritionFlags, "No clear nutrition flags."),
+      listSection("Recommendations", recommendations, "No recommendations returned."),
+    ].join("");
+  })();
+  const metricHtml = (() => {
+    if (resultMode === "analyse_training" || resultMode === "extract_workout") {
+      return `
+        <div><span class="muted">Type</span><strong>${escapeHtml(result.detected_type || "training")}</strong></div>
+        <div><span class="muted">Load</span><strong>${escapeHtml(result.training_load || "not enough data")}</strong></div>
+        <div><span class="muted">Plateaus</span><strong>${plateaus.length}</strong></div>
+        <div><span class="muted">Confidence</span><strong>${confidence}%</strong></div>
+      `;
+    }
+    if (resultMode === "analyse_nutrition") {
+      return `
+        <div><span class="muted">Type</span><strong>${escapeHtml(result.detected_type || "nutrition")}</strong></div>
+        <div><span class="muted">Flags</span><strong>${nutritionFlags.length}</strong></div>
+        <div><span class="muted">Meal Draft</span><strong>${mealDraft ? "Ready" : "No"}</strong></div>
+        <div><span class="muted">Confidence</span><strong>${confidence}%</strong></div>
+      `;
+    }
+    if (resultMode === "analyse_recovery") {
+      return `
+        <div><span class="muted">Type</span><strong>${escapeHtml(result.detected_type || "recovery")}</strong></div>
+        <div><span class="muted">Recovery</span><strong>${escapeHtml(result.recovery_risk || "unknown")}</strong></div>
+        <div><span class="muted">Load</span><strong>${escapeHtml(result.training_load || "not enough data")}</strong></div>
+        <div><span class="muted">Confidence</span><strong>${confidence}%</strong></div>
+      `;
+    }
+    return `
       <div><span class="muted">Type</span><strong>${escapeHtml(result.detected_type || "unknown")}</strong></div>
       <div><span class="muted">Load</span><strong>${escapeHtml(result.training_load || "not enough data")}</strong></div>
       <div><span class="muted">Recovery</span><strong>${escapeHtml(result.recovery_risk || "unknown")}</strong></div>
       <div><span class="muted">Confidence</span><strong>${confidence}%</strong></div>
+    `;
+  })();
+  const canUseMeal = resultMode === "analyse_nutrition" && mealDraft;
+  const canUseWorkout = (resultMode === "analyse_training" || resultMode === "extract_workout") && workoutDraft;
+  target._mealDraft = canUseMeal ? mealDraft : null;
+  target._workoutDraft = canUseWorkout ? workoutDraft : null;
+  target.classList.remove("empty");
+  target.innerHTML = `
+    <div class="ai-summary">${escapeHtml(result.summary || "No summary returned.")}</div>
+    ${
+      canUseMeal || canUseWorkout
+        ? `<div class="ai-draft-actions">
+            ${canUseMeal ? "<button class=\"ghost-button\" type=\"button\" data-ai-use-meal>Use as Meal</button>" : ""}
+            ${canUseWorkout ? "<button class=\"ghost-button\" type=\"button\" data-ai-use-workout>Use as Workout</button>" : ""}
+          </div>`
+        : ""
+    }
+    <div class="ai-grid">
+      ${metricHtml}
     </div>
     <div class="ai-columns">
-      <div>
-        <div class="muted">Exercise highlights</div>
-        ${
-          exerciseHighlights.length
-            ? `<ul>${exerciseHighlights.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-            : "<p class=\"muted\">No exercise highlights returned.</p>"
-        }
-      </div>
-      <div>
-        <div class="muted">Plateaus</div>
-        ${
-          plateaus.length
-            ? `<ul>${plateaus.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-            : "<p class=\"muted\">No clear plateaus detected.</p>"
-        }
-      </div>
-      <div>
-        <div class="muted">Training modifications</div>
-        ${
-          trainingModifications.length
-            ? `<ul>${trainingModifications.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-            : "<p class=\"muted\">No training modifications returned.</p>"
-        }
-      </div>
-      <div>
-        <div class="muted">Nutrition flags</div>
-        ${
-          nutritionFlags.length
-            ? `<ul>${nutritionFlags.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-            : "<p class=\"muted\">No clear nutrition flags.</p>"
-        }
-      </div>
-      <div>
-        <div class="muted">Recommendations</div>
-        ${
-          recommendations.length
-            ? `<ul>${recommendations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-            : "<p class=\"muted\">No recommendations returned.</p>"
-        }
-      </div>
+      ${columnsHtml}
     </div>
     <div class="muted">${escapeHtml(analysis?.disclaimer || "")}</div>
   `;
+  target.querySelector("[data-ai-use-meal]")?.addEventListener("click", () => {
+    applyMealDraftToForm(target._mealDraft);
+  });
+  target.querySelector("[data-ai-use-workout]")?.addEventListener("click", () => {
+    applyWorkoutDraftToForm(target._workoutDraft);
+  });
 };
 
 const handleAiAnalyse = async (event, card = null) => {
@@ -1317,6 +1445,7 @@ const handleAiAnalyse = async (event, card = null) => {
   const status = root?.querySelector("[data-ai-status]") || ui.aiStatus;
   const resultTarget = root?.querySelector("[data-ai-result]") || ui.aiResult;
   const notes = root?.querySelector("[data-ai-notes]")?.value || ui.aiNotes?.value || "";
+  const imageInput = root?.querySelector("[data-ai-images]");
   const mode =
     root?.querySelector("[data-ai-mode-select]")?.value ||
     root?.dataset.aiMode ||
@@ -1328,10 +1457,16 @@ const handleAiAnalyse = async (event, card = null) => {
   button.classList.add("is-loading");
   setInlineFeedback(status, "Analysing your recent logs...", "");
   try {
+    const images = await readAiImages(imageInput);
+    if (imageInput?.files?.length && images.length === 0) {
+      setInlineFeedback(status, "Image was too large or unsupported. Try a PNG/JPG under 4 MB.", "error");
+      return;
+    }
     const analysis = await analyseWithAi({
       mode,
       text: notes,
       context: buildAiContext(),
+      images,
     });
     renderAiResult(analysis, resultTarget);
     setInlineFeedback(status, "Analysis complete.", "success");
@@ -1683,6 +1818,7 @@ const bindEvents = () => {
     ui.macroDatePicker.addEventListener("change", async (event) => {
       macroDate = event.target.value;
       await renderMacroChart();
+      renderMeals();
     });
   }
 
@@ -1691,6 +1827,7 @@ const bindEvents = () => {
       macroDate = shiftLocalISO(macroDate, -1);
       if (ui.macroDatePicker) ui.macroDatePicker.value = macroDate;
       await renderMacroChart();
+      renderMeals();
     });
   }
 
@@ -1699,6 +1836,7 @@ const bindEvents = () => {
       macroDate = shiftLocalISO(macroDate, 1);
       if (ui.macroDatePicker) ui.macroDatePicker.value = macroDate;
       await renderMacroChart();
+      renderMeals();
     });
   }
 

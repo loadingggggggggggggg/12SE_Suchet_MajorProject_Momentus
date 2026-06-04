@@ -48,6 +48,50 @@ ALLOWED_MODES = {
     "weekly_summary": "Create a concise weekly training, nutrition, and recovery summary.",
 }
 
+WORKOUT_DRAFT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "date": {"type": "string"},
+        "title": {"type": "string"},
+        "notes": {"type": "string"},
+        "exercises": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "muscle": {"type": "string"},
+                    "sets": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "reps": {"type": "number"},
+                                "weight": {"type": "number"},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+}
+
+MEAL_DRAFT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "date": {"type": "string"},
+        "name": {"type": "string"},
+        "calories": {"type": "number"},
+        "protein": {"type": "number"},
+        "carbs": {"type": "number"},
+        "fat": {"type": "number"},
+        "notes": {"type": "string"},
+        "needs_confirmation": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
 ANALYSIS_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -60,6 +104,8 @@ ANALYSIS_SCHEMA: dict[str, Any] = {
         "exercise_highlights": {"type": "array", "items": {"type": "string"}},
         "plateaus": {"type": "array", "items": {"type": "string"}},
         "training_modifications": {"type": "array", "items": {"type": "string"}},
+        "workout_draft": WORKOUT_DRAFT_SCHEMA,
+        "meal_draft": MEAL_DRAFT_SCHEMA,
         "confidence": {"type": "number"},
     },
     "required": [
@@ -86,6 +132,8 @@ FALLBACK_RESULT: dict[str, Any] = {
     "exercise_highlights": [],
     "plateaus": [],
     "training_modifications": [],
+    "workout_draft": None,
+    "meal_draft": None,
     "confidence": 0,
 }
 
@@ -124,6 +172,11 @@ def _coerce_result(value: Any) -> dict[str, Any]:
             str(item).strip() for item in values if str(item).strip()
         ] if isinstance(values, list) else []
 
+    if not isinstance(result.get("workout_draft"), dict):
+        result["workout_draft"] = None
+    if not isinstance(result.get("meal_draft"), dict):
+        result["meal_draft"] = None
+
     try:
         confidence = float(result.get("confidence", 0))
     except (TypeError, ValueError):
@@ -136,6 +189,43 @@ def _build_prompt(mode: str, user_text: str, context: dict[str, Any]) -> str:
     mode_goal = ALLOWED_MODES.get(mode, ALLOWED_MODES["weekly_summary"])
     compact_context = json.dumps(context or {}, ensure_ascii=True, separators=(",", ":"))[:18000]
     cleaned_text = (user_text or "").strip()[:12000]
+    mode_rules = {
+        "weekly_summary": """
+Dashboard focus:
+- Produce one holistic summary across training, nutrition, recovery, habits, and recent consistency.
+- Keep workout_draft and meal_draft null.
+- Avoid deep exercise programming unless it is a major weekly pattern.
+""",
+        "analyse_training": """
+Training focus:
+- Focus on training quality, progression, exercise-specific highlights, plateaus, volume balance, and practical programming changes.
+- You may refer to nutrition/recovery only when it directly explains training performance.
+- If workout images are attached, extract them into workout_draft using the app shape: date, title, notes, exercises, sets, reps, weight.
+- If the image does not show a value, leave that field blank or zero rather than inventing it.
+- Keep meal_draft null.
+""",
+        "extract_workout": """
+Workout extraction focus:
+- Extract visible workout details into workout_draft using the app shape: date, title, notes, exercises, sets, reps, weight.
+- Mention uncertain fields in recommendations.
+- Keep meal_draft null.
+""",
+        "analyse_nutrition": """
+Nutrition focus:
+- Focus on food, macro totals, hydration, meal timing, and how nutrition supports training/recovery.
+- You may refer to training/recovery only when it affects fuelling needs.
+- If a food label or food image is attached and the user gives grams/ml consumed, calculate the consumed macros.
+- Return meal_draft when enough data exists for a meal log. Leave missing fields blank or zero and list missing details in needs_confirmation.
+- If portion size or consumption is unclear, ask what grams/ml or percentage of the serving they ate.
+- Keep workout_draft null.
+""",
+        "analyse_recovery": """
+Recovery focus:
+- Focus on sleep, fatigue, soreness, stress, recovery notes, and readiness adjustments.
+- You may refer to training/nutrition only when it directly affects recovery.
+- Keep workout_draft and meal_draft null.
+""",
+    }.get(mode, "")
     return f"""
 You are Momentus AI Coach, a careful assistant for a strength-training tracker.
 Goal: {mode_goal}
@@ -148,10 +238,12 @@ Rules:
 - Highlight specific exercises when exercise data is available.
 - Use the provided plateauCandidates to identify exercises whose best weight or reps have not improved for about 60 days.
 - Suggest training modifications such as deloads, rep-range changes, volume changes, exercise variation, technique focus, rest changes, or recovery priorities.
-- If workout images are attached, extract visible exercise names, sets, reps, weights, dates, and notes.
+- If workout images are attached, extract visible exercise names, sets, reps, weights, dates, and notes and display clearly. 
 - If food images are attached, estimate likely foods and macro ranges, then ask the user to confirm portion size and how much they consumed when unclear.
 - If data is incomplete, say what is missing and keep confidence low.
 - Use Australian English spelling.
+
+{mode_rules}
 
 User notes:
 {cleaned_text or "No direct notes provided."}

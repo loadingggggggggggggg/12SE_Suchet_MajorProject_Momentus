@@ -194,28 +194,12 @@
                 <span class="muted">Gemini analysis</span>
               </div>
               <form class="form ai-coach-form" id="aiCoachForm" data-ai-form="dashboard">
-                <div class="form-row">
-                  <label>
-                    <span>Mode</span>
-                    <select id="aiMode" data-ai-mode-select>
-                      <option value="extract_workout">Extract workout</option>
-                      <option value="analyse_training">Analyse training</option>
-                      <option value="analyse_recovery">Analyse recovery</option>
-                      <option value="analyse_nutrition">Analyse nutrition</option>
-                      <option value="weekly_summary">Weekly summary</option>
-                    </select>
-                  </label>
-                </div>
                 <label>
                   <span>Notes</span>
-                  <textarea id="aiNotes" data-ai-notes rows="5" placeholder="Paste workout notes, meals, recovery reflections, or ask for a weekly summary..."></textarea>
-                </label>
-                <label>
-                  <span>Image input</span>
-                  <input type="file" data-ai-images accept="image/*" multiple />
+                  <textarea id="aiNotes" data-ai-notes rows="5" placeholder="Ask for a weekly overview or leave blank for a holistic Momentus summary..."></textarea>
                 </label>
                 <div class="form-actions">
-                  <button class="primary-button" id="aiAnalyseButton" data-ai-button type="submit">Analyse</button>
+                  <button class="primary-button" id="aiAnalyseButton" data-ai-button type="submit">Summarise Dashboard</button>
                 </div>
                 <div class="muted ai-status" id="aiStatus" data-ai-status>AI results use your recent Momentus logs plus any notes you paste here.</div>
               </form>
@@ -400,26 +384,26 @@
                   <div class="form-row">
                     <label>
                       <span>Calories</span>
-                      <input type="number" id="targetCalories" placeholder="2600" />
+                        <input type="number" id="targetCalories" placeholder="2600" step="0.1" />
                     </label>
                     <label>
                       <span>Protein (g)</span>
-                      <input type="number" id="targetProtein" placeholder="180" />
+                      <input type="number" id="targetProtein" placeholder="180" step="0.1" />
                     </label>
                   </div>
                   <div class="form-row">
                     <label>
                       <span>Carbs (g)</span>
-                      <input type="number" id="targetCarbs" placeholder="250" />
+                      <input type="number" id="targetCarbs" placeholder="250" step="0.1" />
                     </label>
                     <label>
                       <span>Fat (g)</span>
-                      <input type="number" id="targetFat" placeholder="70" />
+                      <input type="number" id="targetFat" placeholder="70" step="0.1" />
                     </label>
                     <div class="hydration-target-group">
                       <label>
                         <span>Hydration (ml)</span>
-                        <input type="number" id="targetHydration" placeholder="2500" />
+                        <input type="number" id="targetHydration" placeholder="2500" step="0.1" />
                       </label>
                       <button class="primary-button target-save" type="submit">Save</button>
                     </div>
@@ -479,21 +463,21 @@
                 <div class="form-row">
                   <label>
                     <span>Calories</span>
-                    <input type="number" id="mealCalories" />
+                    <input type="number" id="mealCalories" step="0.1" />
                   </label>
                   <label>
                     <span>Protein (g)</span>
-                    <input type="number" id="mealProtein" />
+                    <input type="number" id="mealProtein" step="0.1" />
                   </label>
                 </div>
                 <div class="form-row">
                   <label>
                     <span>Carbs (g)</span>
-                    <input type="number" id="mealCarbs" />
+                    <input type="number" id="mealCarbs" step="0.1" />
                   </label>
                   <label>
                     <span>Fat (g)</span>
-                    <input type="number" id="mealFat" />
+                    <input type="number" id="mealFat" step="0.1" />
                   </label>
                 </div>
                 <label>
@@ -721,6 +705,6 @@
       </main>
     </div>
 
-    <script type="module" src="/static/app.js?v=ai-coach-2"></script>
+    <script type="module" src="/static/app.js?v=ai-coach-4"></script>
   </body>
 </html>

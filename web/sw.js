@@ -1,4 +1,4 @@
-const CACHE_NAME = "momentus-pwa-v8";
+const CACHE_NAME = "momentus-pwa-v10";
 const APP_SHELL = [
   "/",
   "/login",
