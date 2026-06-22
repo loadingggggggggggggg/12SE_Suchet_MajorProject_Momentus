@@ -23,7 +23,7 @@ Install the backend dependencies:
 ```bash
 pip install -r backend/requirements.txt
 ```
-
+ 
 Start the app:
 
 ```bash
@@ -64,7 +64,7 @@ python -m uvicorn backend.main:app --reload
 
 The `.env` file is ignored by git, so the key will not be committed.
 
-Temporary terminal setup:
+Temporary terminal setup (paste each line one at a time):
 
 PowerShell:
 
@@ -73,19 +73,6 @@ $env:GEMINI_API_KEY="paste-your-key-here"
 python -m uvicorn backend.main:app --reload
 ```
 
-Command Prompt:
-
-```bat
-set GEMINI_API_KEY=paste-your-key-here
-python -m uvicorn backend.main:app --reload
-```
-
-macOS/Linux:
-
-```bash
-export GEMINI_API_KEY="paste-your-key-here"
-python -m uvicorn backend.main:app --reload
-```
 
 Momentus uses `gemini-2.5-flash` by default. To use another model, set `GEMINI_MODEL` before starting the server.
 
