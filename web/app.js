@@ -9,10 +9,12 @@ import {
   saveSession,
   deleteSession,
   importWorkoutRows,
+  deleteAllTrainingData,
   saveMacroTargets,
   addHydration,
   saveSleepEntry,
   saveMeal,
+  saveFood,
   deleteMeal,
   getHabitForDate,
   getMacroTargets,
@@ -24,9 +26,22 @@ import {
   computeWeekSummary,
   computeMacroProgress,
   computeHydrationTotal,
+  computeRecoveryTimeline,
   saveRecoveryNote,
   getRecoveryNoteForDate,
 } from "./state.js";
+import {
+  changePassword,
+  getAccountExportUrl,
+  getCurrentUser,
+  getOnboarding,
+  analyseWithAi,
+  logout,
+  setUnauthorizedHandler,
+  updateOnboarding,
+  updateProfile,
+} from "./storage.js?v=ai-coach-4";
+import { ONBOARDING_STEPS, ONBOARDING_VERSION } from "./onboarding-config.js";
 
 const setupSplash = () => {
   const splash = document.getElementById("splash");
@@ -36,15 +51,9 @@ const setupSplash = () => {
     splash.classList.add("splash--hide");
     const remove = () => splash.remove();
     splash.addEventListener("transitionend", remove, { once: true });
-    if (prefersReduced) {
-      remove();
-    } else {
-      setTimeout(remove, 1200);
-    }
+    setTimeout(remove, prefersReduced ? 0 : 900);
   };
-  window.addEventListener("load", () => {
-    setTimeout(hideSplash, prefersReduced ? 0 : 1000);
-  });
+  setTimeout(hideSplash, prefersReduced ? 0 : 600);
 };
 
 const setupDragAndDrop = () => {
@@ -221,8 +230,13 @@ const ui = {
   dashboardCalendarMonth: document.getElementById("dashboardCalendarMonth"),
   trainingCalendarView: document.getElementById("trainingCalendarView"),
   trainingCalendarMonth: document.getElementById("trainingCalendarMonth"),
+  trainingCalendarYear: document.getElementById("trainingCalendarYear"),
+  macroDatePicker: document.getElementById("macroDatePicker"),
+  macroPrevDay: document.getElementById("macroPrevDay"),
+  macroNextDay: document.getElementById("macroNextDay"),
   sessionList: document.getElementById("sessionList"),
   importWorkoutsButton: document.getElementById("importWorkoutsButton"),
+  deleteTrainingDataButton: document.getElementById("deleteTrainingDataButton"),
   workoutFileInput: document.getElementById("workoutFileInput"),
   importStatus: document.getElementById("importStatus"),
   addSessionButton: document.getElementById("addSessionButton"),
@@ -269,6 +283,35 @@ const ui = {
   recoveryNotesDate: document.getElementById("recoveryNotesDate"),
   recoveryNotesText: document.getElementById("recoveryNotesText"),
   recoveryTimelineList: document.getElementById("recoveryTimelineList"),
+  greetingLabel: document.getElementById("greetingLabel"),
+  syncStatus: document.getElementById("syncStatus"),
+  landingButton: document.getElementById("landingButton"),
+  logoutButton: document.getElementById("logoutButton"),
+  profileForm: document.getElementById("profileForm"),
+  profileDisplayName: document.getElementById("profileDisplayName"),
+  profileEmail: document.getElementById("profileEmail"),
+  profileStatus: document.getElementById("profileStatus"),
+  accountOnboardingStatus: document.getElementById("accountOnboardingStatus"),
+  accountOnboardingSummary: document.getElementById("accountOnboardingSummary"),
+  resumeOnboardingButton: document.getElementById("resumeOnboardingButton"),
+  restartOnboardingButton: document.getElementById("restartOnboardingButton"),
+  passwordForm: document.getElementById("passwordForm"),
+  currentPassword: document.getElementById("currentPassword"),
+  newPassword: document.getElementById("newPassword"),
+  confirmPassword: document.getElementById("confirmPassword"),
+  passwordStatus: document.getElementById("passwordStatus"),
+  exportDataButton: document.getElementById("exportDataButton"),
+  accountDeleteTrainingDataButton: document.getElementById("accountDeleteTrainingDataButton"),
+  accountDataStatus: document.getElementById("accountDataStatus"),
+  mealSaveToFoods: document.getElementById("mealSaveToFoods"),
+  aiCoachForm: document.getElementById("aiCoachForm"),
+  aiMode: document.getElementById("aiMode"),
+  aiNotes: document.getElementById("aiNotes"),
+  aiAnalyseButton: document.getElementById("aiAnalyseButton"),
+  aiStatus: document.getElementById("aiStatus"),
+  aiResult: document.getElementById("aiResult"),
+  aiCards: document.querySelectorAll("[data-ai-card]"),
+
 };
 
 const calendarState = {
@@ -287,6 +330,160 @@ let editingSessionId = null;
 let selectedHabitDate = todayISO();
 let volumeRangeState = "7";
 let muscleRangeState = "7";
+let macroDate = todayISO();
+let currentUser = null;
+let accountOnboardingState = {
+  status: "pending",
+  currentStep: 0,
+  answers: {},
+  version: ONBOARDING_VERSION,
+};
+
+const setInlineFeedback = (element, message = "", tone = "") => {
+  if (!element) return;
+  element.textContent = message;
+  element.classList.toggle("success-text", tone === "success");
+  element.classList.toggle("error-text", tone === "error");
+};
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const readAiImages = async (input) => {
+  const files = Array.from(input?.files || []).slice(0, 4);
+  const maxBytes = 4 * 1024 * 1024;
+  const images = await Promise.all(
+    files
+      .filter((file) => file.type.startsWith("image/") && file.size <= maxBytes)
+      .map(
+        (file) =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.addEventListener("load", () => {
+              const dataUrl = String(reader.result || "");
+              const [, data = ""] = dataUrl.split(",", 2);
+              resolve({ mimeType: file.type, data });
+            });
+            reader.addEventListener("error", () => reject(reader.error));
+            reader.readAsDataURL(file);
+          })
+      )
+  );
+  return images;
+};
+
+const setCurrentUser = (user) => {
+  currentUser = user || null;
+  const displayName = currentUser?.displayName || "Athlete";
+  if (ui.greetingLabel) {
+    ui.greetingLabel.textContent = `Hey, ${displayName}`;
+  }
+  if (ui.syncStatus) {
+    ui.syncStatus.textContent = currentUser ? "Account Synced" : "Signed Out";
+  }
+};
+
+const describeOnboardingStatus = (stateValue) => {
+  const status = stateValue?.status || currentUser?.onboardingStatus || "pending";
+  const step = Math.min(Math.max(Number(stateValue?.currentStep || 0), 0), ONBOARDING_STEPS.length - 1) + 1;
+  if (status === "completed") {
+    return {
+      label: "Complete",
+      summary: "Your setup is complete and can be updated anytime.",
+      complete: true,
+    };
+  }
+  if (status === "skipped") {
+    return {
+      label: "Skipped",
+      summary: `Resume whenever you're ready. Your last saved step is ${step} of ${ONBOARDING_STEPS.length}.`,
+      complete: false,
+    };
+  }
+  return {
+    label: "In Progress",
+    summary: `Your answers save to your account. Continue from step ${step} of ${ONBOARDING_STEPS.length}.`,
+    complete: false,
+  };
+};
+
+const renderAccount = async () => {
+  if (!currentUser) return;
+  try {
+    accountOnboardingState = await getOnboarding();
+    if (ui.profileDisplayName) ui.profileDisplayName.value = currentUser.displayName || "";
+    if (ui.profileEmail) ui.profileEmail.value = currentUser.email || "";
+    const onboardingStatus = describeOnboardingStatus(accountOnboardingState);
+    if (ui.accountOnboardingStatus) {
+      ui.accountOnboardingStatus.textContent = onboardingStatus.label;
+      ui.accountOnboardingStatus.classList.toggle("status-pill--complete", onboardingStatus.complete);
+    }
+    if (ui.accountOnboardingSummary) {
+      ui.accountOnboardingSummary.textContent = onboardingStatus.summary;
+    }
+    if (ui.resumeOnboardingButton) {
+      ui.resumeOnboardingButton.textContent =
+        accountOnboardingState.status === "completed" ? "Edit Onboarding" : "Resume Onboarding";
+    }
+  } catch (error) {
+    setInlineFeedback(ui.accountDataStatus, error.message || "Could not load account details.", "error");
+  }
+};
+
+const deleteTrainingDataForAccount = async (statusTarget, emptyMessageTarget = statusTarget) => {
+  if (state.workoutSets.length === 0 && state.legacySessions.length === 0) {
+    setInlineFeedback(emptyMessageTarget, "No training data to delete.");
+    updateTrainingDeleteControl();
+    return;
+  }
+  const confirmed = window.confirm("Delete all training data from this account?");
+  if (!confirmed) return;
+  const deleted = await deleteAllTrainingData();
+  const message = deleted > 0 ? `Deleted ${deleted} training records.` : "No training data to delete.";
+  setInlineFeedback(statusTarget, message, deleted > 0 ? "success" : "");
+  renderSessionsList();
+  await updateDashboard();
+  await renderCalendarView();
+  await renderAccount();
+};
+
+const DEFAULT_MUSCLE_GROUPS = [
+  "Abs",
+  "Back",
+  "Biceps",
+  "Calves",
+  "Chest",
+  "Forearms",
+  "Glutes",
+  "Hamstrings",
+  "Hip Flexors",
+  "Lats",
+  "Lower Back",
+  "Quads",
+  "Rear Delts",
+  "Shoulders",
+  "Traps",
+  "Triceps",
+  "Upper Back",
+];
+
+const populateYearSelect = (selectEl, selectedYear) => {
+  if (!selectEl) return;
+  const currentYear = new Date().getFullYear();
+  selectEl.innerHTML = "";
+  for (let y = currentYear; y >= currentYear - 5; y -= 1) {
+    const option = document.createElement("option");
+    option.value = String(y);
+    option.textContent = String(y);
+    if (y === selectedYear) option.selected = true;
+    selectEl.appendChild(option);
+  }
+};
 
 const setDefaultDates = () => {
   const today = todayISO();
@@ -294,10 +491,14 @@ const setDefaultDates = () => {
     if (input) input.value = today;
   });
   const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
   calendarState.month = currentMonth;
   trainingCalendarState.month = currentMonth;
   if (ui.dashboardCalendarMonth) ui.dashboardCalendarMonth.value = String(currentMonth);
   if (ui.trainingCalendarMonth) ui.trainingCalendarMonth.value = String(currentMonth);
+  populateYearSelect(ui.trainingCalendarYear, currentYear);
+  if (ui.macroDatePicker) ui.macroDatePicker.value = today;
+  macroDate = today;
   if (ui.sleepRange) ui.sleepRange.value = "14";
   if (ui.sleepMetric) ui.sleepMetric.value = "hours";
   volumeRangeState = "7";
@@ -330,8 +531,8 @@ const updateHabitsUI = (date = selectedHabitDate) => {
   }
 };
 
-const renderWeekSummary = (weekDates) => {
-  const summary = computeWeekSummary(weekDates);
+const renderWeekSummary = async (weekDates) => {
+  const summary = await computeWeekSummary(weekDates);
   ui.weekSummary.innerHTML = `
     <div>Total sets: <strong>${summary.totalSets}</strong></div>
     <div>Avg calories: <strong>${summary.avgCalories}</strong></div>
@@ -475,7 +676,13 @@ const updateCalendarMonth = (stateObj, monthValue) => {
   stateObj.anchorDate = new Date(year, month, 1);
 };
 
-const renderDashboardCalendar = () => {
+const updateCalendarYear = (stateObj, yearValue) => {
+  const year = Number(yearValue);
+  if (Number.isNaN(year)) return;
+  stateObj.anchorDate = new Date(year, stateObj.anchorDate.getMonth(), 1);
+};
+
+const renderDashboardCalendar = async () => {
   const { weekDates } = renderCalendar(ui.calendarView, {
     view: calendarState.view,
     anchorDate: calendarState.anchorDate,
@@ -484,7 +691,7 @@ const renderDashboardCalendar = () => {
     dayFilter: buildCalendarFilter(calendarState.month),
     onSelectDate: (iso) => updateHabitsUI(iso),
   }) || { weekDates: [] };
-  if (weekDates.length) renderWeekSummary(weekDates);
+  if (weekDates.length) await renderWeekSummary(weekDates);
 };
 
 const renderTrainingCalendar = () => {
@@ -497,8 +704,8 @@ const renderTrainingCalendar = () => {
   });
 };
 
-const updateDashboard = () => {
-  const metrics = computeSessionMetrics(7);
+const updateDashboard = async () => {
+  const metrics = await computeSessionMetrics(7);
   ui.metricSessions.textContent = metrics.sessions;
   ui.metricSets.textContent = metrics.sets;
   ui.metricVolume.textContent = metrics.volume;
@@ -509,20 +716,27 @@ const updateDashboard = () => {
   const volumeRangeValue = volumeRangeState || "7";
   const volumeByMuscle =
     volumeRangeValue === "all"
-      ? computeVolumeByMuscleRange("all", todayISO())
-      : computeVolumeByMuscle(Number(volumeRangeValue) || 7);
+      ? await computeVolumeByMuscleRange("all", todayISO())
+      : await computeVolumeByMuscle(Number(volumeRangeValue) || 7);
   const volumeData = buildSortedVolumeData(volumeByMuscle);
   renderPieChart(ui.volumeChart, volumeData, buildMuscleColors(volumeData));
 
-  renderMuscleDistribution();
+  await renderMuscleDistribution();
   renderDashboardSleepChart();
 };
-const renderCalendarView = () => {
-  renderDashboardCalendar();
+
+const renderCalendarView = async () => {
+  await renderDashboardCalendar();
   renderTrainingCalendar();
 };
 
+const updateTrainingDeleteControl = () => {
+  if (!ui.deleteTrainingDataButton) return;
+  ui.deleteTrainingDataButton.disabled = state.workoutSets.length === 0 && state.legacySessions.length === 0;
+};
+
 const renderSessionsList = () => {
+  updateTrainingDeleteControl();
   ui.sessionList.innerHTML = "";
   if (state.sessions.length === 0) {
     ui.sessionList.innerHTML = "<div class=\"muted\">No sessions logged yet.</div>";
@@ -553,20 +767,20 @@ const renderSessionsList = () => {
     item.querySelector("[data-action=\"delete\"]").addEventListener("click", async () => {
       await deleteSession(session.id);
       renderSessionsList();
-      updateDashboard();
-      renderCalendarView();
+      await updateDashboard();
+      await renderCalendarView();
     });
     ui.sessionList.appendChild(item);
   });
 };
 
-const renderMuscleDistribution = () => {
+const renderMuscleDistribution = async () => {
   if (!ui.muscleDistributionChart) return;
   const range = muscleRangeState || "7";
   const volumeByMuscle =
     range === "all"
-      ? computeVolumeByMuscleRange("all", todayISO())
-      : computeVolumeByMuscle(Number(range) || 7);
+      ? await computeVolumeByMuscleRange("all", todayISO())
+      : await computeVolumeByMuscle(Number(range) || 7);
   const data = buildSortedVolumeData(volumeByMuscle);
   renderPieChart(ui.muscleDistributionChart, data, buildMuscleColors(data));
 };
@@ -599,7 +813,7 @@ const createSetRow = () => {
   row.className = "set-row";
   row.innerHTML = `
     <input type="text" placeholder="Set name" />
-    <input type="number" placeholder="Reps" min="0" />
+    <input type="number" placeholder="Reps" min="0" step="0.1" />
     <input type="number" placeholder="Weight" min="0" step="0.1" />
     <button type="button" class="ghost-button">Remove</button>
   `;
@@ -607,7 +821,34 @@ const createSetRow = () => {
   return row;
 };
 
-const createExerciseBlock = () => {
+const getMuscleGroupOptions = (selectedValue = "") => {
+  const options = new Map();
+  const registerOption = (value) => {
+    const label = String(value || "").trim();
+    if (!label) return;
+    const key = label.toLowerCase();
+    if (!options.has(key)) options.set(key, label);
+  };
+
+  DEFAULT_MUSCLE_GROUPS.forEach(registerOption);
+  state.workoutSets.forEach((row) => registerOption(row.muscle));
+  state.sessions.forEach((session) => {
+    (session.exercises || []).forEach((exercise) => registerOption(exercise.muscle));
+  });
+  registerOption(selectedValue);
+
+  const renderedOptions = Array.from(options.values())
+    .sort((a, b) => a.localeCompare(b))
+    .map((label) => {
+      const isSelected = label === selectedValue ? " selected" : "";
+      return `<option value="${label}"${isSelected}>${label}</option>`;
+    })
+    .join("");
+
+  return `<option value="">Select muscle group</option>${renderedOptions}`;
+};
+
+const createExerciseBlock = (selectedMuscle = "") => {
   const block = document.createElement("div");
   block.className = "exercise-block";
   block.innerHTML = `
@@ -618,7 +859,9 @@ const createExerciseBlock = () => {
       </label>
       <label>
         <span>Muscle Group</span>
-        <input class="exercise-muscle" type="text" placeholder="Chest" />
+        <select class="exercise-muscle">
+          ${getMuscleGroupOptions(selectedMuscle)}
+        </select>
       </label>
     </div>
     <div class="set-list"></div>
@@ -646,9 +889,8 @@ const loadSessionIntoForm = (session) => {
   ui.sessionNotes.value = session.notes || "";
   ui.exerciseBuilder.innerHTML = "";
   (session.exercises || []).forEach((exercise) => {
-    const block = createExerciseBlock();
+    const block = createExerciseBlock(exercise.muscle || "");
     block.querySelector(".exercise-name").value = exercise.name;
-    block.querySelector(".exercise-muscle").value = exercise.muscle || "";
     const setList = block.querySelector(".set-list");
     setList.innerHTML = "";
     (exercise.sets || []).forEach((set) => {
@@ -695,18 +937,19 @@ const handleSessionSubmit = async (event) => {
   };
   await saveSession(session);
   renderSessionsList();
-  updateDashboard();
-  renderCalendarView();
+  await updateDashboard();
+  await renderCalendarView();
   resetSessionForm();
 };
 
 const renderMeals = () => {
   ui.mealList.innerHTML = "";
-  if (state.meals.length === 0) {
-    ui.mealList.innerHTML = "<div class=\"muted\">No meals logged yet.</div>";
+  const mealsForDate = state.meals.filter((meal) => meal.date === macroDate);
+  if (mealsForDate.length === 0) {
+    ui.mealList.innerHTML = "<div class=\"muted\">No meals logged for this day.</div>";
     return;
   }
-  state.meals.forEach((meal) => {
+  mealsForDate.forEach((meal) => {
     const item = document.createElement("div");
     item.className = "list-item";
     item.innerHTML = `
@@ -728,8 +971,8 @@ const renderMeals = () => {
     item.querySelector("[data-action=\"delete\"]").addEventListener("click", async () => {
       await deleteMeal(meal.id);
       renderMeals();
-      renderMacroChart();
-      renderCalendarView();
+      await renderMacroChart();
+      await renderCalendarView();
     });
     ui.mealList.appendChild(item);
   });
@@ -747,17 +990,15 @@ const addMealFromFood = async (food) => {
     notes: "Added from food search",
   });
   renderMeals();
-  renderMacroChart();
-  renderCalendarView();
+  await renderMacroChart();
+  await renderCalendarView();
 };
 
 const renderFoodSearch = (query) => {
   if (!ui.foodSearchResults) return;
   const q = (query ?? ui.foodSearchInput?.value ?? "").trim().toLowerCase();
   const foods = state.foods || [];
-  const results = q
-    ? foods.filter((food) => (food.name || "").toLowerCase().includes(q))
-    : foods.slice(0, 8);
+  const results = q ? foods.filter((food) => (food.name || "").toLowerCase().includes(q)) : foods;
 
   ui.foodSearchResults.innerHTML = "";
   if (results.length === 0) {
@@ -798,8 +1039,8 @@ const renderMacroTargets = () => {
   ui.targetHydration.value = targets.hydration || "";
 };
 
-const renderMacroChart = () => {
-  const progress = computeMacroProgress(todayISO());
+const renderMacroChart = async (date = macroDate) => {
+  const progress = await computeMacroProgress(date);
   const rings = {
     Protein: progress.protein,
     Carbs: progress.carbs,
@@ -809,9 +1050,9 @@ const renderMacroChart = () => {
   renderRingChart(ui.macroChart, rings, { centerText });
 };
 
-const renderHydration = () => {
+const renderHydration = async () => {
   const targets = getMacroTargets();
-  const total = computeHydrationTotal(todayISO());
+  const total = await computeHydrationTotal(todayISO());
   const goal = Number(targets.hydration || 0);
   if (ui.hydrationTotal) ui.hydrationTotal.textContent = total;
   if (ui.hydrationGoal) ui.hydrationGoal.textContent = goal;
@@ -867,26 +1108,21 @@ const renderRecoveryNotes = (date = ui.recoveryNotesDate?.value || todayISO()) =
   ui.recoveryNotesText.value = note?.notes || "";
 };
 
-const renderRecoveryTimeline = () => {
+const renderRecoveryTimeline = async () => {
   if (!ui.recoveryTimelineList) return;
-  const sleepMap = new Map((state.sleep || []).map((entry) => [entry.date, entry]));
-  const noteMap = new Map((state.recoveryNotes || []).map((entry) => [entry.date, entry]));
-  const dates = Array.from(new Set([...sleepMap.keys(), ...noteMap.keys()])).sort((a, b) =>
-    b.localeCompare(a)
-  );
+  const timeline = await computeRecoveryTimeline(30);
 
   ui.recoveryTimelineList.innerHTML = "";
-  if (dates.length === 0) {
+  if (!timeline.length) {
     ui.recoveryTimelineList.innerHTML = "<div class=\"muted\">No recovery entries yet.</div>";
     return;
   }
 
-  dates.slice(0, 30).forEach((date) => {
-    const sleep = sleepMap.get(date);
-    const note = noteMap.get(date);
-    const hours = sleep ? Number(sleep.hours || 0) : null;
-    const quality = sleep ? Number(sleep.quality || 0) : null;
-    const noteText = note?.notes?.trim() || "No notes";
+  timeline.forEach((entry) => {
+    const hours = entry?.hours || null;
+    const quality = entry?.quality || null;
+    const noteText = entry?.notes?.trim() || "No notes";
+    const date = entry?.date || todayISO();
     const dateLabel = parseLocalISO(date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
     const item = document.createElement("div");
@@ -903,9 +1139,366 @@ const renderRecoveryTimeline = () => {
   });
 };
 
+const normaliseExerciseName = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const buildExerciseProgress = () => {
+  const byExercise = new Map();
+  state.sessions.forEach((session) => {
+    const date = normalizeSessionDate(session) || session.date;
+    if (!date) return;
+    (session.exercises || []).forEach((exercise) => {
+      const key = normaliseExerciseName(exercise.name);
+      if (!key) return;
+      if (!byExercise.has(key)) {
+        byExercise.set(key, {
+          exercise: exercise.name || "Exercise",
+          muscle: exercise.muscle || "",
+          entries: [],
+        });
+      }
+      const sets = exercise.sets || [];
+      const bestWeight = sets.reduce((max, set) => Math.max(max, Number(set.weight || 0)), 0);
+      const bestReps = sets.reduce((max, set) => Math.max(max, Number(set.reps || 0)), 0);
+      const volume = sets.reduce(
+        (sum, set) => sum + Number(set.weight || 0) * Number(set.reps || 0),
+        0
+      );
+      byExercise.get(key).entries.push({
+        date,
+        bestWeight,
+        bestReps,
+        sets: sets.length,
+        volume,
+      });
+    });
+  });
+
+  return Array.from(byExercise.values()).map((item) => ({
+    ...item,
+    entries: item.entries.sort((a, b) => a.date.localeCompare(b.date)),
+  }));
+};
+
+const detectPlateauCandidates = () => {
+  const cutoff = parseLocalISO(todayISO());
+  cutoff.setDate(cutoff.getDate() - 60);
+  return buildExerciseProgress()
+    .map((item) => {
+      const recent = item.entries.filter((entry) => parseLocalISO(entry.date) >= cutoff);
+      if (recent.length < 2) return null;
+      const first = recent[0];
+      const last = recent[recent.length - 1];
+      const maxWeight = recent.reduce((max, entry) => Math.max(max, Number(entry.bestWeight || 0)), 0);
+      const maxReps = recent.reduce((max, entry) => Math.max(max, Number(entry.bestReps || 0)), 0);
+      const improvedWeight = Number(last.bestWeight || 0) > Number(first.bestWeight || 0);
+      const improvedReps = Number(last.bestReps || 0) > Number(first.bestReps || 0);
+      if (improvedWeight || improvedReps) return null;
+      return {
+        exercise: item.exercise,
+        muscle: item.muscle,
+        sessionsTracked: recent.length,
+        since: first.date,
+        latest: last.date,
+        firstBestWeight: Number(first.bestWeight || 0),
+        latestBestWeight: Number(last.bestWeight || 0),
+        maxWeight,
+        firstBestReps: Number(first.bestReps || 0),
+        latestBestReps: Number(last.bestReps || 0),
+        maxReps,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.sessionsTracked - a.sessionsTracked)
+    .slice(0, 8);
+};
+
+const buildExerciseHighlights = () =>
+  buildExerciseProgress()
+    .map((item) => {
+      const latest = item.entries[item.entries.length - 1];
+      if (!latest) return null;
+      const totalSets = item.entries.reduce((sum, entry) => sum + Number(entry.sets || 0), 0);
+      const maxWeight = item.entries.reduce((max, entry) => Math.max(max, Number(entry.bestWeight || 0)), 0);
+      const maxReps = item.entries.reduce((max, entry) => Math.max(max, Number(entry.bestReps || 0)), 0);
+      return {
+        exercise: item.exercise,
+        muscle: item.muscle,
+        sessionsTracked: item.entries.length,
+        totalSets,
+        latestDate: latest.date,
+        latestBestWeight: Number(latest.bestWeight || 0),
+        latestBestReps: Number(latest.bestReps || 0),
+        maxWeight,
+        maxReps,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.sessionsTracked - a.sessionsTracked)
+    .slice(0, 12);
+
+const buildAiContext = () => {
+  const recentSessions = state.sessions
+    .slice()
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, 12);
+  const recentMeals = state.meals
+    .slice()
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, 20);
+  const recentSleep = state.sleep
+    .slice()
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, 14);
+  const recentRecoveryNotes = state.recoveryNotes
+    .slice()
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, 14);
+
+  return {
+    today: todayISO(),
+    macroTargets: getMacroTargets(),
+    exerciseHighlights: buildExerciseHighlights(),
+    plateauCandidates: detectPlateauCandidates(),
+    recentSessions,
+    recentMeals,
+    recentSleep,
+    recentRecoveryNotes,
+  };
+};
+
+const numberOrBlank = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? String(Math.round(number * 100) / 100) : "";
+};
+
+const applyMealDraftToForm = (draft) => {
+  if (!draft) return;
+  if (ui.mealDate) ui.mealDate.value = draft.date || todayISO();
+  if (ui.mealName) ui.mealName.value = draft.name || "";
+  if (ui.mealCalories) ui.mealCalories.value = numberOrBlank(draft.calories);
+  if (ui.mealProtein) ui.mealProtein.value = numberOrBlank(draft.protein);
+  if (ui.mealCarbs) ui.mealCarbs.value = numberOrBlank(draft.carbs);
+  if (ui.mealFat) ui.mealFat.value = numberOrBlank(draft.fat);
+  if (ui.mealNotes) {
+    const missing = Array.isArray(draft.needs_confirmation) && draft.needs_confirmation.length
+      ? `\nConfirm: ${draft.needs_confirmation.join(", ")}`
+      : "";
+    ui.mealNotes.value = `${draft.notes || "Estimated by AI from nutrition input."}${missing}`.trim();
+  }
+  document.querySelector("[data-route=\"nutrition\"]")?.click();
+  ui.mealForm?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+const applyWorkoutDraftToForm = (draft) => {
+  if (!draft) return;
+  resetSessionForm();
+  if (ui.sessionDate) ui.sessionDate.value = draft.date || todayISO();
+  if (ui.sessionTitle) ui.sessionTitle.value = draft.title || "AI extracted workout";
+  if (ui.sessionNotes) ui.sessionNotes.value = draft.notes || "Extracted by AI from workout input.";
+  if (ui.exerciseBuilder) {
+    ui.exerciseBuilder.innerHTML = "";
+    const exercises = Array.isArray(draft.exercises) && draft.exercises.length
+      ? draft.exercises
+      : [{ name: "", muscle: "", sets: [{}] }];
+    exercises.forEach((exercise) => {
+      const block = createExerciseBlock(exercise.muscle || "");
+      const nameInput = block.querySelector(".exercise-name");
+      if (nameInput) nameInput.value = exercise.name || "";
+      const setList = block.querySelector(".set-list");
+      setList.innerHTML = "";
+      const sets = Array.isArray(exercise.sets) && exercise.sets.length ? exercise.sets : [{}];
+      sets.forEach((set, index) => {
+        const row = createSetRow();
+        const inputs = row.querySelectorAll("input");
+        inputs[0].value = set.name || `Set ${index + 1}`;
+        inputs[1].value = numberOrBlank(set.reps);
+        inputs[2].value = numberOrBlank(set.weight);
+        setList.appendChild(row);
+      });
+      ui.exerciseBuilder.appendChild(block);
+    });
+  }
+  document.querySelector("[data-route=\"training\"]")?.click();
+  ui.sessionForm?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+const renderAiResult = (analysis, target = ui.aiResult) => {
+  if (!target) return;
+  const result = analysis?.result || {};
+  const recommendations = Array.isArray(result.recommendations) ? result.recommendations : [];
+  const nutritionFlags = Array.isArray(result.nutrition_flags) ? result.nutrition_flags : [];
+  const exerciseHighlights = Array.isArray(result.exercise_highlights) ? result.exercise_highlights : [];
+  const plateaus = Array.isArray(result.plateaus) ? result.plateaus : [];
+  const trainingModifications = Array.isArray(result.training_modifications) ? result.training_modifications : [];
+  const mealDraft = result.meal_draft && typeof result.meal_draft === "object" ? result.meal_draft : null;
+  const workoutDraft = result.workout_draft && typeof result.workout_draft === "object" ? result.workout_draft : null;
+  const confidence = Math.round(Number(result.confidence || 0) * 100);
+  const resultMode = target.closest("[data-ai-card]")?.dataset.aiMode || "weekly_summary";
+  const listSection = (title, items, emptyText) => `
+    <div>
+      <div class="muted">${title}</div>
+      ${
+        items.length
+          ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+          : `<p class="muted">${emptyText}</p>`
+      }
+    </div>
+  `;
+  const columnsHtml = (() => {
+    if (resultMode === "analyse_training" || resultMode === "extract_workout") {
+      return [
+        listSection("Exercise highlights", exerciseHighlights, "No exercise highlights returned."),
+        listSection("Plateaus", plateaus, "No clear plateaus detected."),
+        listSection("Training modifications", trainingModifications, "No training modifications returned."),
+        listSection("Recommendations", recommendations, "No recommendations returned."),
+      ].join("");
+    }
+    if (resultMode === "analyse_nutrition") {
+      return [
+        listSection("Nutrition flags", nutritionFlags, "No clear nutrition flags."),
+        listSection("Recommendations", recommendations, "No recommendations returned."),
+      ].join("");
+    }
+    if (resultMode === "analyse_recovery") {
+      return [
+        listSection("Recovery signals", recommendations, "No recovery recommendations returned."),
+      ].join("");
+    }
+    return [
+      listSection("Exercise highlights", exerciseHighlights, "No exercise highlights returned."),
+      listSection("Plateaus", plateaus, "No clear plateaus detected."),
+      listSection("Nutrition flags", nutritionFlags, "No clear nutrition flags."),
+      listSection("Recommendations", recommendations, "No recommendations returned."),
+    ].join("");
+  })();
+  const metricHtml = (() => {
+    if (resultMode === "analyse_training" || resultMode === "extract_workout") {
+      return `
+        <div><span class="muted">Type</span><strong>${escapeHtml(result.detected_type || "training")}</strong></div>
+        <div><span class="muted">Load</span><strong>${escapeHtml(result.training_load || "not enough data")}</strong></div>
+        <div><span class="muted">Plateaus</span><strong>${plateaus.length}</strong></div>
+        <div><span class="muted">Confidence</span><strong>${confidence}%</strong></div>
+      `;
+    }
+    if (resultMode === "analyse_nutrition") {
+      return `
+        <div><span class="muted">Type</span><strong>${escapeHtml(result.detected_type || "nutrition")}</strong></div>
+        <div><span class="muted">Flags</span><strong>${nutritionFlags.length}</strong></div>
+        <div><span class="muted">Meal Draft</span><strong>${mealDraft ? "Ready" : "No"}</strong></div>
+        <div><span class="muted">Confidence</span><strong>${confidence}%</strong></div>
+      `;
+    }
+    if (resultMode === "analyse_recovery") {
+      return `
+        <div><span class="muted">Type</span><strong>${escapeHtml(result.detected_type || "recovery")}</strong></div>
+        <div><span class="muted">Recovery</span><strong>${escapeHtml(result.recovery_risk || "unknown")}</strong></div>
+        <div><span class="muted">Load</span><strong>${escapeHtml(result.training_load || "not enough data")}</strong></div>
+        <div><span class="muted">Confidence</span><strong>${confidence}%</strong></div>
+      `;
+    }
+    return `
+      <div><span class="muted">Type</span><strong>${escapeHtml(result.detected_type || "unknown")}</strong></div>
+      <div><span class="muted">Load</span><strong>${escapeHtml(result.training_load || "not enough data")}</strong></div>
+      <div><span class="muted">Recovery</span><strong>${escapeHtml(result.recovery_risk || "unknown")}</strong></div>
+      <div><span class="muted">Confidence</span><strong>${confidence}%</strong></div>
+    `;
+  })();
+  const canUseMeal = resultMode === "analyse_nutrition" && mealDraft;
+  const canUseWorkout = (resultMode === "analyse_training" || resultMode === "extract_workout") && workoutDraft;
+  target._mealDraft = canUseMeal ? mealDraft : null;
+  target._workoutDraft = canUseWorkout ? workoutDraft : null;
+  target.classList.remove("empty");
+  target.innerHTML = `
+    <div class="ai-summary">${escapeHtml(result.summary || "No summary returned.")}</div>
+    ${
+      canUseMeal || canUseWorkout
+        ? `<div class="ai-draft-actions">
+            ${canUseMeal ? "<button class=\"ghost-button\" type=\"button\" data-ai-use-meal>Use as Meal</button>" : ""}
+            ${canUseWorkout ? "<button class=\"ghost-button\" type=\"button\" data-ai-use-workout>Use as Workout</button>" : ""}
+          </div>`
+        : ""
+    }
+    <div class="ai-grid">
+      ${metricHtml}
+    </div>
+    <div class="ai-columns">
+      ${columnsHtml}
+    </div>
+    <div class="muted">${escapeHtml(analysis?.disclaimer || "")}</div>
+  `;
+  target.querySelector("[data-ai-use-meal]")?.addEventListener("click", () => {
+    applyMealDraftToForm(target._mealDraft);
+  });
+  target.querySelector("[data-ai-use-workout]")?.addEventListener("click", () => {
+    applyWorkoutDraftToForm(target._workoutDraft);
+  });
+};
+
+const handleAiAnalyse = async (event, card = null) => {
+  event.preventDefault();
+  const root = card || event.currentTarget?.closest("[data-ai-card]");
+  const button = root?.querySelector("[data-ai-button]") || ui.aiAnalyseButton;
+  const status = root?.querySelector("[data-ai-status]") || ui.aiStatus;
+  const resultTarget = root?.querySelector("[data-ai-result]") || ui.aiResult;
+  const notes = root?.querySelector("[data-ai-notes]")?.value || ui.aiNotes?.value || "";
+  const imageInput = root?.querySelector("[data-ai-images]");
+  const mode =
+    root?.querySelector("[data-ai-mode-select]")?.value ||
+    root?.dataset.aiMode ||
+    ui.aiMode?.value ||
+    "weekly_summary";
+  if (!button) return;
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.classList.add("is-loading");
+  setInlineFeedback(status, "Analysing your recent logs...", "");
+  try {
+    const images = await readAiImages(imageInput);
+    if (imageInput?.files?.length && images.length === 0) {
+      setInlineFeedback(status, "Image was too large or unsupported. Try a PNG/JPG under 4 MB.", "error");
+      return;
+    }
+    const analysis = await analyseWithAi({
+      mode,
+      text: notes,
+      context: buildAiContext(),
+      images,
+    });
+    renderAiResult(analysis, resultTarget);
+    setInlineFeedback(status, "Analysis complete.", "success");
+  } catch (error) {
+    setInlineFeedback(
+      status,
+      error.message || "AI analysis failed. Check the server setup and try again.",
+      "error"
+    );
+  } finally {
+    button.disabled = false;
+    button.classList.remove("is-loading");
+    button.textContent = originalLabel;
+  }
+};
+
 const parseLocalISO = (iso) => {
   const [year, month, day] = iso.split("-").map(Number);
   return new Date(year, month - 1, day);
+};
+
+const formatLocalISO = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const shiftLocalISO = (iso, deltaDays) => {
+  const next = parseLocalISO(iso);
+  next.setDate(next.getDate() + deltaDays);
+  return formatLocalISO(next);
 };
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -1077,8 +1670,8 @@ const bindEvents = () => {
           ui.importStatus.textContent = `Imported ${imported} sets from ${file.name}.`;
         }
         renderSessionsList();
-        updateDashboard();
-        renderCalendarView();
+        await updateDashboard();
+        await renderCalendarView();
       } catch (error) {
         if (ui.importStatus) {
           ui.importStatus.textContent = "Import failed. Please check the CSV format.";
@@ -1090,8 +1683,95 @@ const bindEvents = () => {
     });
   }
 
+  if (ui.deleteTrainingDataButton) {
+    ui.deleteTrainingDataButton.addEventListener("click", async () => {
+      await deleteTrainingDataForAccount(ui.importStatus, ui.importStatus);
+    });
+  }
+
+  ui.landingButton?.addEventListener("click", () => {
+    window.location.href = "/";
+  });
+
+  ui.logoutButton?.addEventListener("click", async () => {
+    try {
+      await logout();
+    } catch (error) {
+      if (error?.status !== 401) {
+        console.error(error);
+      }
+    } finally {
+      window.location.replace("/login");
+    }
+  });
+
+  ui.profileForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setInlineFeedback(ui.profileStatus, "");
+    try {
+      const updatedUser = await updateProfile({
+        displayName: ui.profileDisplayName?.value.trim() || "",
+        email: ui.profileEmail?.value.trim() || "",
+      });
+      setCurrentUser(updatedUser);
+      await renderAccount();
+      setInlineFeedback(ui.profileStatus, "Profile updated.", "success");
+    } catch (error) {
+      setInlineFeedback(ui.profileStatus, error.message || "Could not save profile.", "error");
+    }
+  });
+
+  ui.passwordForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setInlineFeedback(ui.passwordStatus, "");
+    if ((ui.newPassword?.value || "") !== (ui.confirmPassword?.value || "")) {
+      setInlineFeedback(ui.passwordStatus, "New passwords do not match.", "error");
+      return;
+    }
+    try {
+      const result = await changePassword({
+        currentPassword: ui.currentPassword?.value || "",
+        newPassword: ui.newPassword?.value || "",
+      });
+      setCurrentUser(result.user);
+      ui.passwordForm?.reset();
+      setInlineFeedback(ui.passwordStatus, "Password updated.", "success");
+    } catch (error) {
+      setInlineFeedback(ui.passwordStatus, error.message || "Could not update password.", "error");
+    }
+  });
+
+  ui.exportDataButton?.addEventListener("click", () => {
+    window.open(getAccountExportUrl(), "_blank", "noopener");
+  });
+
+  ui.resumeOnboardingButton?.addEventListener("click", () => {
+    window.location.href = "/onboarding";
+  });
+
+  ui.restartOnboardingButton?.addEventListener("click", async () => {
+    const confirmed = window.confirm("Restart onboarding from step 1?");
+    if (!confirmed) return;
+    try {
+      accountOnboardingState = await updateOnboarding({
+        status: "pending",
+        currentStep: 0,
+        answers: {},
+        version: accountOnboardingState.version || ONBOARDING_VERSION,
+      });
+      if (currentUser) currentUser.onboardingStatus = "pending";
+      window.location.href = "/onboarding";
+    } catch (error) {
+      setInlineFeedback(ui.accountDataStatus, error.message || "Could not restart onboarding.", "error");
+    }
+  });
+
+  ui.accountDeleteTrainingDataButton?.addEventListener("click", async () => {
+    await deleteTrainingDataForAccount(ui.accountDataStatus, ui.accountDataStatus);
+  });
+
   document.querySelectorAll(".segment").forEach((segment) => {
-    segment.addEventListener("click", () => {
+    segment.addEventListener("click", async () => {
       const group = segment.dataset.group || "dashboard";
       document
         .querySelectorAll(`.segment[data-group="${group}"]`)
@@ -1102,27 +1782,61 @@ const bindEvents = () => {
         renderTrainingCalendar();
       } else if (group === "volume") {
         volumeRangeState = segment.dataset.range || "7";
-        updateDashboard();
+        await updateDashboard();
       } else if (group === "muscle") {
         muscleRangeState = segment.dataset.range || "7";
-        renderMuscleDistribution();
+        await renderMuscleDistribution();
       } else {
         calendarState.view = segment.dataset.view;
-        renderDashboardCalendar();
+        await renderDashboardCalendar();
       }
     });
   });
 
   if (ui.dashboardCalendarMonth) {
-    ui.dashboardCalendarMonth.addEventListener("change", (event) => {
+    ui.dashboardCalendarMonth.addEventListener("change", async (event) => {
       updateCalendarMonth(calendarState, event.target.value);
-      renderDashboardCalendar();
+      await renderDashboardCalendar();
     });
   }
+
   if (ui.trainingCalendarMonth) {
     ui.trainingCalendarMonth.addEventListener("change", (event) => {
       updateCalendarMonth(trainingCalendarState, event.target.value);
       renderTrainingCalendar();
+    });
+  }
+
+  if (ui.trainingCalendarYear) {
+    ui.trainingCalendarYear.addEventListener("change", (event) => {
+      updateCalendarYear(trainingCalendarState, event.target.value);
+      renderTrainingCalendar();
+    });
+  }
+
+  if (ui.macroDatePicker) {
+    ui.macroDatePicker.addEventListener("change", async (event) => {
+      macroDate = event.target.value;
+      await renderMacroChart();
+      renderMeals();
+    });
+  }
+
+  if (ui.macroPrevDay) {
+    ui.macroPrevDay.addEventListener("click", async () => {
+      macroDate = shiftLocalISO(macroDate, -1);
+      if (ui.macroDatePicker) ui.macroDatePicker.value = macroDate;
+      await renderMacroChart();
+      renderMeals();
+    });
+  }
+
+  if (ui.macroNextDay) {
+    ui.macroNextDay.addEventListener("click", async () => {
+      macroDate = shiftLocalISO(macroDate, 1);
+      if (ui.macroDatePicker) ui.macroDatePicker.value = macroDate;
+      await renderMacroChart();
+      renderMeals();
     });
   }
 
@@ -1132,7 +1846,7 @@ const bindEvents = () => {
       electrolytes: ui.habitElectrolytes.checked,
     });
     updateHabitsUI(selectedHabitDate);
-    renderCalendarView();
+    await renderCalendarView();
   });
 
   if (ui.progressExercise) {
@@ -1164,9 +1878,12 @@ const bindEvents = () => {
       const notes = ui.recoveryNotesText?.value || "";
       await saveRecoveryNote(date, notes);
       renderRecoveryNotes(date);
-      renderRecoveryTimeline();
+      await renderRecoveryTimeline();
     });
   }
+  document.querySelectorAll("[data-ai-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => handleAiAnalyse(event, form.closest("[data-ai-card]")));
+  });
   ui.addExerciseButton.addEventListener("click", () => {
     ui.exerciseBuilder.appendChild(createExerciseBlock());
   });
@@ -1187,23 +1904,36 @@ const bindEvents = () => {
       fat: Number(ui.targetFat.value || 0),
       hydration: Number(ui.targetHydration.value || 0),
     });
-    renderMacroChart();
-    renderHydration();
+    await renderMacroChart();
+    await renderHydration();
   });
 
-  ui.mealForm.addEventListener("submit", async (event) => {
+   ui.mealForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const mealName = ui.mealName.value;
+    const calories = Number(ui.mealCalories.value || 0);
+    const protein = Number(ui.mealProtein.value || 0);
+    const carbs = Number(ui.mealCarbs.value || 0);
+    const fat = Number(ui.mealFat.value || 0);
+
     await saveMeal({
       date: ui.mealDate.value,
-      name: ui.mealName.value,
-      calories: Number(ui.mealCalories.value || 0),
-      protein: Number(ui.mealProtein.value || 0),
-      carbs: Number(ui.mealCarbs.value || 0),
-      fat: Number(ui.mealFat.value || 0),
+      name: mealName,
+      calories,
+      protein,
+      carbs,
+      fat,
       notes: ui.mealNotes.value,
     });
+
+    if (ui.mealSaveToFoods?.checked && mealName.trim()) {
+      await saveFood({ name: mealName, calories, protein, carbs, fat });
+      ui.mealSaveToFoods.checked = false;
+    }
+
     renderMeals();
-    renderMacroChart();
+    await renderMacroChart();
+    renderFoodSearch();
     ui.mealName.value = "";
     ui.mealCalories.value = "";
     ui.mealProtein.value = "";
@@ -1215,13 +1945,13 @@ const bindEvents = () => {
   if (ui.addHydrationButton) {
     ui.addHydrationButton.addEventListener("click", async () => {
       await addHydration(todayISO(), 250);
-      renderHydration();
+      await renderHydration();
     });
   }
   if (ui.removeHydrationButton) {
     ui.removeHydrationButton.addEventListener("click", async () => {
       await addHydration(todayISO(), -250);
-      renderHydration();
+      await renderHydration();
     });
   }
 
@@ -1233,15 +1963,15 @@ const bindEvents = () => {
       quality: Number(ui.sleepQuality.value || 3),
     });
     renderSleepChart();
-    renderRecoveryTimeline();
-    renderCalendarView();
+    await renderRecoveryTimeline();
+    await renderCalendarView();
   });
 };
 
 const registerServiceWorker = () => {
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js");
+      navigator.serviceWorker.register("/sw.js");
     });
   }
 };
@@ -1265,37 +1995,49 @@ const setupInstallPrompt = () => {
 };
 
 const init = async () => {
-  setupSplash();
+  setUnauthorizedHandler(() => {
+    window.location.replace("/login");
+  });
+  const authenticatedUser = await getCurrentUser();
+  if (!authenticatedUser) {
+    window.location.replace("/login");
+    return;
+  }
+  setCurrentUser(authenticatedUser);
   setupDragAndDrop();
   await initState();
   setDefaultDates();
   updateHabitsUI();
-  renderCalendarView();
-  updateDashboard();
+  await renderCalendarView();
+  await updateDashboard();
   renderSessionsList();
   renderMeals();
   renderFoodSearch();
   renderMacroTargets();
-  renderMacroChart();
-  renderHydration();
+  await renderMacroChart();
+  await renderHydration();
   renderSleepChart();
   renderRecoveryNotes();
-  renderRecoveryTimeline();
+  await renderRecoveryTimeline();
+  await renderAccount();
   resetSessionForm();
 
   bindEvents();
   initRouter((route) => {
-    requestAnimationFrame(() => {
-      if (route === "dashboard" || route === "training") updateDashboard();
+    requestAnimationFrame(async () => {
+      if (route === "dashboard" || route === "training") await updateDashboard();
       if (route === "nutrition") {
-        renderMacroChart();
-        renderHydration();
+        await renderMacroChart();
+        await renderHydration();
         renderFoodSearch();
       }
       if (route === "recovery") {
         renderSleepChart();
         renderRecoveryNotes();
-        renderRecoveryTimeline();
+        await renderRecoveryTimeline();
+      }
+      if (route === "account") {
+        await renderAccount();
       }
     });
   });
@@ -1303,11 +2045,17 @@ const init = async () => {
   setupInstallPrompt();
 
   window.addEventListener("resize", () => {
-    updateDashboard();
-    renderMacroChart();
-    renderHydration();
+    void updateDashboard();
+    void renderMacroChart();
+    void renderHydration();
     renderSleepChart();
   });
 };
 
-init();
+setupSplash();
+init().catch((error) => {
+  console.error(error);
+  if (ui.syncStatus) {
+    ui.syncStatus.textContent = "Load failed";
+  }
+});

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#141414" />
+    <meta name="description" content="Log in to your Momentus account." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/static/assets/Logo.png" type="image/png" />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <title>Log In | Momentus</title>
+  </head>
+  <body class="auth-page">
+    <div class="landing-bg" aria-hidden="true"></div>
+    <main class="auth-shell">
+      <section class="auth-panel system-card">
+        <a class="marketing-brand" href="/">
+          <img src="/static/assets/Logo.png" alt="Momentus logo" />
+          <span>Momentus</span>
+        </a>
+        <div class="auth-panel-form">
+          <h2>Welcome back</h2>
+          <p>Pick up where your training, nutrition, and recovery tracking left off.</p>
+          <ul class="auth-points">
+            <li>Your saved data stays tied to your account.</li>
+            <li>Open the app on desktop or mobile with the same login.</li>
+            <li>Resume onboarding later from your account page anytime.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="signup-card auth-panel">
+        <h2>Log in</h2>
+        <form class="auth-form" id="authLoginForm">
+          <label>
+            <span>Email</span>
+            <input id="authLoginEmail" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="authLoginPassword" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="primary-button" type="submit"><span>Log in</span></button>
+        </form>
+        <div class="auth-aux">
+          <button class="text-link" id="forgotPasswordToggle" type="button">Forgot password?</button>
+        </div>
+        <form class="auth-form auth-inline-panel" id="forgotPasswordForm" hidden>
+          <label>
+            <span>Reset Email</span>
+            <input id="forgotPasswordEmail" type="email" autocomplete="email" required />
+          </label>
+          <button class="ghost-button" type="submit"><span>Send reset email</span></button>
+        </form>
+        <div class="auth-feedback" id="authFeedback" aria-live="polite"></div>
+        <div class="auth-feedback" id="forgotFeedback" aria-live="polite"></div>
+        <p class="auth-switch">Need an account? <a href="/signup">Sign up</a></p>
+      </section>
+    </main>
+
+    <script type="module" src="/static/auth-pages.js"></script>
+  </body>
+</html>

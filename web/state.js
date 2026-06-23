@@ -1,12 +1,17 @@
 ﻿import {
   STORES,
   getAll,
-  add,
+  getSessionMetrics as fetchSessionMetrics,
+  getVolumeByMuscle as fetchVolumeByMuscle,
+  getWeekSummary as fetchWeekSummary,
+  getMacroProgress as fetchMacroProgress,
+  getHydrationTotal as fetchHydrationTotal,
+  getRecoveryTimeline as fetchRecoveryTimeline,
+  deleteTrainingData as requestDeleteTrainingData,
   put,
   remove,
   bulkPut,
   makeId,
-  seedIfNeeded,
 } from "./storage.js";
 
 const state = {
@@ -33,201 +38,6 @@ const toLocalISO = (date) => {
 const parseLocalISO = (iso) => {
   const [year, month, day] = iso.split("-").map(Number);
   return new Date(year, month - 1, day);
-};
-
-const normalizeText = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const normalizePhrases = (phrases) => phrases.map((phrase) => normalizeText(phrase));
-
-const EXERCISE_RULES = [
-  {
-    phrases: normalizePhrases([
-      "bench press",
-      "incline bench press",
-      "decline bench press",
-      "chest press",
-      "hex press",
-      "chest dip",
-      "push up",
-      "pushup",
-      "bench dip",
-    ]),
-    muscles: { Chest: 1, Triceps: 0.5, Shoulders: 0.5 },
-  },
-  {
-    phrases: normalizePhrases(["pec deck", "butterfly", "chest fly", "dumbbell fly", "cable fly"]),
-    muscles: { Chest: 1 },
-  },
-  {
-    phrases: normalizePhrases([
-      "pull up",
-      "pull-up",
-      "chin up",
-      "chin-up",
-      "lat pulldown",
-      "lat pull down",
-      "lat prayer",
-    ]),
-    muscles: { Lats: 1, Biceps: 0.5 },
-  },
-  {
-    phrases: normalizePhrases([
-      "iso lateral row",
-      "iso-lateral row",
-      "seated row",
-      "seated cable row",
-      "v grip row",
-      "dumbbell row",
-      "bent over row",
-      "barbell row",
-    ]),
-    muscles: { "Upper Back": 1, Biceps: 0.5 },
-  },
-  {
-    phrases: normalizePhrases(["shrug"]),
-    muscles: { Traps: 1 },
-  },
-  {
-    phrases: normalizePhrases(["face pull", "reverse fly", "reverse flye", "reverse pec deck"]),
-    muscles: { "Rear Delts": 1, "Upper Back": 0.5 },
-  },
-  {
-    phrases: normalizePhrases(["shoulder press", "overhead press"]),
-    muscles: { Shoulders: 1, Triceps: 0.5 },
-  },
-  {
-    phrases: normalizePhrases(["lateral raise", "side raise"]),
-    muscles: { Shoulders: 1 },
-  },
-  {
-    phrases: normalizePhrases(["front raise"]),
-    muscles: { Shoulders: 1 },
-  },
-  {
-    phrases: normalizePhrases([
-      "bayesian curl",
-      "bicep curl",
-      "biceps curl",
-      "hammer curl",
-      "preacher curl",
-      "concentration curl",
-      "lying bicep curl",
-    ]),
-    muscles: { Biceps: 1 },
-  },
-  {
-    phrases: normalizePhrases([
-      "skullcrusher",
-      "triceps pushdown",
-      "tricep pushdown",
-      "cable triceps extension",
-      "machine triceps extension",
-      "cable kickback",
-      "triceps extension",
-    ]),
-    muscles: { Triceps: 1 },
-  },
-  {
-    phrases: normalizePhrases(["wrist curl", "forearm curl"]),
-    muscles: { Forearms: 1 },
-  },
-  {
-    phrases: normalizePhrases(["decline crunch", "hanging leg raise", "hanging knee raise", "crunch"]),
-    muscles: { Abs: 1 },
-  },
-  {
-    phrases: normalizePhrases(["leg extension"]),
-    muscles: { Quads: 1 },
-  },
-  {
-    phrases: normalizePhrases(["leg curl"]),
-    muscles: { Hamstrings: 1 },
-  },
-  {
-    phrases: normalizePhrases(["calf raise"]),
-    muscles: { Calves: 1 },
-  },
-  {
-    phrases: normalizePhrases(["hip thrust"]),
-    muscles: { Glutes: 1, Hamstrings: 0.5 },
-  },
-  {
-    phrases: normalizePhrases(["hip adduction"]),
-    muscles: { Adductors: 1 },
-  },
-  {
-    phrases: normalizePhrases(["hip abduction"]),
-    muscles: { Abductors: 1 },
-  },
-  {
-    phrases: normalizePhrases(["leg press"]),
-    muscles: { Quads: 1, Glutes: 0.5, Hamstrings: 0.5 },
-  },
-  {
-    phrases: normalizePhrases(["romanian deadlift", "rdl", "deadlift"]),
-    muscles: { Glutes: 1, Hamstrings: 1, "Lower Back": 0.5, Traps: 0.5 },
-  },
-  {
-    phrases: normalizePhrases(["bulgarian split squat", "hack squat", "jump squat", "squat"]),
-    muscles: { Quads: 1, Glutes: 0.5, Hamstrings: 0.5 },
-  },
-];
-
-const getExerciseMuscleWeights = (name) => {
-  const normalized = normalizeText(name);
-  if (!normalized) return null;
-  for (const rule of EXERCISE_RULES) {
-    if (rule.phrases.some((phrase) => normalized.includes(phrase))) {
-      return rule.muscles;
-    }
-  }
-  return null;
-};
-
-const accumulateMuscleVolume = (buckets, weights, setCount) => {
-  Object.entries(weights).forEach(([muscle, weight]) => {
-    buckets[muscle] = (buckets[muscle] || 0) + setCount * weight;
-  });
-};
-
-const groupMuscleBuckets = (buckets) => {
-  const grouped = {};
-  Object.entries(buckets).forEach(([muscle, value]) => {
-    const key = normalizeText(muscle);
-    let group = muscle;
-    if (["upper back", "lower back", "lats", "traps"].includes(key)) {
-      group = "Back";
-    } else if (["adductors", "abductors"].includes(key)) {
-      group = "Hip Flexors";
-    } else if (["rear delts", "rear deltoids", "shoulders", "delts", "deltoids"].includes(key)) {
-      group = "Delts";
-    }
-    grouped[group] = (grouped[group] || 0) + value;
-  });
-  return grouped;
-};
-
-const filterSessionsByRange = (range, dateISO) => {
-  if (!range) return state.sessions;
-  const base = parseLocalISO(dateISO || todayISO());
-  return state.sessions.filter((session) => {
-    const date = parseLocalISO(session.date || todayISO());
-    if (range === "day") {
-      return date.toDateString() === base.toDateString();
-    }
-    if (range === "month") {
-      return date.getFullYear() === base.getFullYear() && date.getMonth() === base.getMonth();
-    }
-    if (range === "year") {
-      return date.getFullYear() === base.getFullYear();
-    }
-    return true;
-  });
 };
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -370,7 +180,6 @@ const buildSessionsFromWorkoutSets = (workoutSets) => {
 const todayISO = () => toLocalISO(new Date());
 
 const initState = async () => {
-  await seedIfNeeded();
   await loadAll();
   if (state.workoutSets.length === 0 && state.legacySessions.length > 0) {
     await importLegacySessions(state.legacySessions);
@@ -427,6 +236,12 @@ const importWorkoutRows = async (rows) => {
   await bulkPut(STORES.workoutSets, normalized);
   await loadAll();
   return normalized.length;
+};
+
+const deleteAllTrainingData = async () => {
+  const result = await requestDeleteTrainingData();
+  await loadAll();
+  return Number(result?.count || 0);
 };
 
 const importLegacySessions = async (sessions) => {
@@ -552,13 +367,6 @@ const addHydration = async (date, amountMl) => {
   return entry;
 };
 
-const saveMacroEntry = async (entry) => {
-  const item = { id: entry.id || makeId(), ...entry };
-  await put(STORES.macros, item);
-  await loadAll();
-  return item;
-};
-
 const saveSleepEntry = async (entry) => {
   const item = { id: entry.id || makeId(), ...entry };
   await put(STORES.sleep, item);
@@ -585,14 +393,29 @@ const saveMeal = async (entry) => {
   return item;
 };
 
+const saveFood = async (entry) => {
+  const name = String(entry?.name || "").trim();
+  if (!name) return null;
+  const existing = state.foods.find((food) => (food.name || "").trim().toLowerCase() === name.toLowerCase());
+  const item = {
+    id: existing?.id || entry.id || makeId(),
+    name,
+    calories: Number.isFinite(Number(entry?.calories)) ? Number(entry.calories) : 0,
+    protein: Number.isFinite(Number(entry?.protein)) ? Number(entry.protein) : 0,
+    carbs: Number.isFinite(Number(entry?.carbs)) ? Number(entry.carbs) : 0,
+    fat: Number.isFinite(Number(entry?.fat)) ? Number(entry.fat) : 0,
+  };
+  await put(STORES.foods, item);
+  await loadAll();
+  return item;
+};
+
 const deleteMeal = async (id) => {
   await remove(STORES.meals, id);
   await loadAll();
 };
 
 const getHabitForDate = (date) => state.habits.find((h) => h.date === date);
-
-const getSleepForDate = (date) => state.sleep.find((s) => s.date === date);
 
 const getSessionForDate = (date) => state.sessions.find((s) => s.date === date);
 
@@ -601,111 +424,16 @@ const getRecoveryNoteForDate = (date) => state.recoveryNotes.find((entry) => ent
 const getMacroTargets = () =>
   state.settings.macroTargets || { calories: 0, protein: 0, carbs: 0, fat: 0, hydration: 0 };
 
-const computeHydrationTotal = (date) => {
-  const entry = state.hydration.find((item) => item.date === date);
-  return Number(entry?.amount_ml || 0);
+const computeHydrationTotal = async (date) => {
+  const result = await fetchHydrationTotal(date);
+  return Number(result?.total || 0);
 };
 
-const computeSessionMetrics = (days = 7) => {
-  const cutoff = parseLocalISO(todayISO());
-  cutoff.setDate(cutoff.getDate() - (days - 1));
-  const recent = state.sessions.filter((session) => parseLocalISO(session.date) >= cutoff);
-  const sets = recent.flatMap((session) => session.exercises || []).flatMap((ex) => ex.sets || []);
-  const volume = sets.reduce((sum, set) => sum + Number(set.reps || 0) * Number(set.weight || 0), 0);
-  const prs = recent.reduce((count, session) => {
-    const top = session.exercises?.flatMap((ex) => ex.sets || []).reduce((max, set) => Math.max(max, set.weight || 0), 0) || 0;
-    return count + (top > 0 ? 1 : 0);
-  }, 0);
-  return {
-    sessions: recent.length,
-    sets: sets.length,
-    volume: Math.round(volume),
-    prs,
-  };
-};
+const computeSessionMetrics = async (days = 7) => fetchSessionMetrics(days);
 
-const computeVolumeByMuscle = (days = 7) => {
-  const cutoff = parseLocalISO(todayISO());
-  cutoff.setDate(cutoff.getDate() - (days - 1));
-  const buckets = {};
-  state.sessions
-    .filter((session) => parseLocalISO(session.date) >= cutoff)
-    .forEach((session) => {
-      (session.exercises || []).forEach((exercise) => {
-        const count = (exercise.sets || []).length;
-        if (count === 0) return;
-        const weights = getExerciseMuscleWeights(exercise.name);
-        if (weights) {
-          accumulateMuscleVolume(buckets, weights, count);
-          return;
-        }
-        const muscle = exercise.muscle || "Other";
-        buckets[muscle] = (buckets[muscle] || 0) + count;
-      });
-    });
-  return groupMuscleBuckets(buckets);
-};
+const computeVolumeByMuscle = async (days = 7) => fetchVolumeByMuscle({ days });
 
-const computeVolumeByMuscleRange = (range, dateISO) => {
-  const buckets = {};
-  filterSessionsByRange(range, dateISO).forEach((session) => {
-    (session.exercises || []).forEach((exercise) => {
-      const count = (exercise.sets || []).length;
-      if (count === 0) return;
-      const weights = getExerciseMuscleWeights(exercise.name);
-      if (weights) {
-        accumulateMuscleVolume(buckets, weights, count);
-        return;
-      }
-      const muscle = exercise.muscle || "Other";
-      buckets[muscle] = (buckets[muscle] || 0) + count;
-    });
-  });
-  return groupMuscleBuckets(buckets);
-};
-
-const computeProgressSeries = () => {
-  const series = state.sessions
-    .slice()
-    .reverse()
-    .map((session) => {
-      const sets = session.exercises?.flatMap((ex) => ex.sets || []) || [];
-      const bestSet = sets.reduce(
-        (best, set) => (set.weight > (best?.weight || 0) ? set : best),
-        null
-      );
-      return {
-        label: session.date.slice(5),
-        weight: bestSet?.weight || 0,
-        reps: bestSet?.reps || 0,
-      };
-    });
-  return series.length ? series : [{ label: "--", weight: 0, reps: 0 }];
-};
-
-const computeVolumeTrend = (weeks = 6) => {
-  const results = [];
-  const now = parseLocalISO(todayISO());
-  for (let i = weeks - 1; i >= 0; i -= 1) {
-    const start = new Date(now);
-    start.setDate(now.getDate() - i * 7);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    const volume = state.sessions
-      .filter((session) => {
-        const date = parseLocalISO(session.date);
-        return date >= start && date <= end;
-      })
-      .flatMap((session) => session.exercises || [])
-      .flatMap((ex) => ex.sets || [])
-      .reduce((sum, set) => sum + Number(set.reps || 0) * Number(set.weight || 0), 0);
-    results.push({
-      label: `${start.getMonth() + 1}/${start.getDate()}`,
-      value: Math.round(volume),
-    });
-  }
-  return results;
-};
+const computeVolumeByMuscleRange = async (range, dateISO) => fetchVolumeByMuscle({ range, date: dateISO });
 
 const computeHabitStreak = () => {
   const sorted = state.habits.slice().sort((a, b) => b.date.localeCompare(a.date));
@@ -739,51 +467,14 @@ const getDayStatus = (date) => {
   return "miss";
 };
 
-const computeMealTotals = (date) => {
-  const meals = state.meals.filter((meal) => meal.date === date);
-  return meals.reduce(
-    (totals, meal) => ({
-      calories: totals.calories + Number(meal.calories || 0),
-      protein: totals.protein + Number(meal.protein || 0),
-      carbs: totals.carbs + Number(meal.carbs || 0),
-      fat: totals.fat + Number(meal.fat || 0),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 }
-  );
-};
+const computeWeekSummary = async (weekDates) => fetchWeekSummary(weekDates);
 
-const computeWeekSummary = (weekDates) => {
-  const sessions = weekDates
-    .map((d) => getSessionForDate(d))
-    .filter(Boolean);
-  const sets = sessions.flatMap((session) => session.exercises || []).flatMap((ex) => ex.sets || []);
-  const totalSets = sets.length;
-  const calories = weekDates.reduce((sum, date) => sum + computeMealTotals(date).calories, 0);
-  const sleepEntries = weekDates
-    .map((d) => getSleepForDate(d))
-    .filter(Boolean);
-  const avgCalories = weekDates.length ? Math.round(calories / weekDates.length) : 0;
-  const avgSleep = sleepEntries.length
-    ? (sleepEntries.reduce((sum, entry) => sum + Number(entry.hours || 0), 0) / sleepEntries.length).toFixed(1)
-    : "0.0";
-  return {
-    totalSets,
-    avgCalories,
-    avgSleep,
-  };
-};
+const computeMacroProgress = async (date) => fetchMacroProgress(date);
 
-const computeMacroProgress = (date) => {
-  const targets = getMacroTargets();
-  const entry = computeMealTotals(date);
-  return {
-    calories: { value: entry.calories || 0, target: targets.calories || 0 },
-    protein: { value: entry.protein || 0, target: targets.protein || 0 },
-    carbs: { value: entry.carbs || 0, target: targets.carbs || 0 },
-    fat: { value: entry.fat || 0, target: targets.fat || 0 },
-  };
+const computeRecoveryTimeline = async (limit = 30) => {
+  const result = await fetchRecoveryTimeline(limit);
+  return result?.entries ?? [];
 };
-
 export {
   state,
   initState,
@@ -793,12 +484,13 @@ export {
   saveSession,
   deleteSession,
   importWorkoutRows,
+  deleteAllTrainingData,
   saveMacroTargets,
   addHydration,
-  saveMacroEntry,
   saveSleepEntry,
   saveRecoveryNote,
   saveMeal,
+  saveFood,
   deleteMeal,
   getHabitForDate,
   getRecoveryNoteForDate,
@@ -806,12 +498,10 @@ export {
   computeSessionMetrics,
   computeVolumeByMuscle,
   computeVolumeByMuscleRange,
-  computeProgressSeries,
-  computeVolumeTrend,
   computeHabitStreak,
   getDayStatus,
   computeWeekSummary,
-  computeMealTotals,
   computeMacroProgress,
   computeHydrationTotal,
+  computeRecoveryTimeline,
 };

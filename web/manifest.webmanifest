@@ -1,14 +1,15 @@
-﻿{
+{
   "name": "Momentus",
   "short_name": "Momentus",
   "description": "Training, nutrition, and recovery tracker.",
-  "start_url": "./index.html",
+  "start_url": "/app",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#141414",
   "theme_color": "#141414",
   "icons": [
     {
-      "src": "assets/icon.svg",
+      "src": "/static/assets/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

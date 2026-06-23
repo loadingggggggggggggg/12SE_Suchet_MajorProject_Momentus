@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#141414" />
+    <meta name="description" content="Create a Momentus account." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/static/assets/Logo.png" type="image/png" />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <title>Sign Up | Momentus</title>
+  </head>
+  <body class="auth-page">
+    <div class="landing-bg" aria-hidden="true"></div>
+    <main class="auth-shell">
+      <section class="auth-panel system-card">
+        <a class="marketing-brand" href="/">
+          <img src="/static/assets/Logo.png" alt="Momentus logo" />
+          <span>Momentus</span>
+        </a>
+        <div class="auth-panel-form">
+          <h2>Start strong</h2>
+          <p>Create your account first, then answer a few quick onboarding questions in the floating setup panel.</p>
+          <ul class="auth-points">
+            <li>Keep your own workouts, meals, hydration, sleep, and notes.</li>
+            <li>Set up a training profile you can edit later from your account page.</li>
+            <li>Use the same clean app flow on desktop, tablet, or mobile.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="signup-card auth-panel">
+        <h2>Create account</h2>
+        <form class="auth-form" id="authSignupForm">
+          <label>
+            <span>Display Name</span>
+            <input id="authSignupDisplayName" type="text" autocomplete="name" required />
+          </label>
+          <label>
+            <span>Email</span>
+            <input id="authSignupEmail" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="authSignupPassword" type="password" autocomplete="new-password" required />
+          </label>
+          <button class="primary-button" type="submit"><span>Sign up</span></button>
+        </form>
+        <div class="auth-feedback" id="authFeedback" aria-live="polite"></div>
+        <p class="auth-switch">Already have an account? <a href="/login">Log in</a></p>
+      </section>
+    </main>
+
+    <script type="module" src="/static/auth-pages.js"></script>
+  </body>
+</html>
