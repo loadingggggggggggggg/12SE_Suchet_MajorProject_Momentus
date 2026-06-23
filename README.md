@@ -39,19 +39,9 @@ http://localhost:8000/
 Do not open `web/index.html` directly. The PWA and API need the FastAPI server.
 
 ## Gemini AI Setup
+(LOOK AT ATTACHED DOC FOR API KEY) 
 
-The AI Coach needs a Gemini API key. The key must stay on the backend and must not be pasted into frontend files.
-
-1. Go to Google AI Studio: `https://aistudio.google.com`
-2. Sign in with your Google account.
-3. Open **Dashboard -> API keys**.
-4. Create or copy a Gemini API key.
-5. Save it using one of the methods below.
-
-Recommended local setup:
-
-Create a file named `.env` in the project root:
-
+to set the API key, the following command must be pasted into the terminal
 ```text
 GEMINI_API_KEY=paste-your-key-here
 ```
